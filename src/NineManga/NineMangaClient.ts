@@ -6,6 +6,7 @@ import {
   type ChapterDetails,
   type DiscoverSection,
   type DiscoverSectionItem,
+  type Metadata,
   type PagedResults,
   type SearchResultItem,
   type SourceManga,
@@ -116,7 +117,7 @@ export class NineMangaClient {
 
   async getDiscoverSectionItems(
     section: DiscoverSection,
-    metadata: unknown | undefined
+    metadata: Metadata | undefined
   ): Promise<PagedResults<DiscoverSectionItem>> {
     const config = SECTIONS.find((candidate) => candidate.id === section.id)
     if (!config) return EndOfPageResults
@@ -248,7 +249,7 @@ export class NineMangaClient {
     })
   }
 
-  private readPage(metadata: unknown | undefined): number {
+  private readPage(metadata: Metadata | undefined): number {
     const page = (metadata as PageMetadata | undefined)?.page
     return typeof page === 'number' && page > 0 ? page : 1
   }

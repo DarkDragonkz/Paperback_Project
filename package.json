@@ -1,5 +1,5 @@
 {
-  "name": "paperback-project",
+  "name": "Paperback_Project",
   "repositoryName": "Paperback_Project",
   "version": "1.0.0",
   "description": "A modular Paperback iOS 0.9 extension repository, starting with NineManga.",
@@ -15,11 +15,11 @@
     "test": "npm run tsc && npm run bundle"
   },
   "dependencies": {
-    "@paperback/types": "1.0.0-alpha.57",
+    "@paperback/types": "1.0.0-alpha.86",
     "cheerio": "^1.1.2"
   },
   "devDependencies": {
-    "@paperback/toolchain": "1.0.0-alpha.57",
+    "@paperback/toolchain": "1.0.0-alpha.86",
     "typescript": "^5.9.3"
   }
 }

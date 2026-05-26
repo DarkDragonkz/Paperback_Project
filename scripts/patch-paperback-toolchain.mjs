@@ -1,14 +1,15 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-const bundlePath = path.join(
-  process.cwd(),
+const bundlePath = path.resolve(
   'node_modules',
   '@paperback',
   'toolchain',
-  'lib',
-  'commands',
-  'bundle.js'
+  'dist',
+  'src',
+  'toolchain',
+  'bundle',
+  'bundle.mjs'
 )
 
 if (!fs.existsSync(bundlePath)) {
@@ -17,25 +18,29 @@ if (!fs.existsSync(bundlePath)) {
 
 let source = fs.readFileSync(bundlePath, 'utf8')
 
-if (!source.includes("import { pathToFileURL } from 'url';")) {
+if (!source.includes('pathToFileURL')) {
   source = source.replace(
-    "import path from 'path';",
-    "import path from 'path';\nimport { pathToFileURL } from 'url';"
+    'import path from "node:path";',
+    'import path from "node:path";\nimport { pathToFileURL } from "node:url";'
   )
 }
 
 source = source
   .replace(
-    "await import(path.join(basePath, 'node_modules/@paperback/types/package.json'), { with: { type: 'json' } })",
-    "await import(pathToFileURL(path.join(basePath, 'node_modules/@paperback/types/package.json')).href, { with: { type: 'json' } })"
+    /import\(path\.join\(basePath, "node_modules\/@paperback\/types\/package\.json"\), \{ with: \{ type: "json" \} \}\)/g,
+    'import(pathToFileURL(path.join(basePath, "node_modules/@paperback/types/package.json")).href, { with: { type: "json" } })'
   )
   .replace(
-    "await import(path.join(basePath, 'package.json'), {",
-    "await import(pathToFileURL(path.join(basePath, 'package.json')).href, {"
+    /import\(path\.join\(basePath, "package\.json"\), \{ with: \{ type: "json" \} \}\)/g,
+    'import(pathToFileURL(path.join(basePath, "package.json")).href, { with: { type: "json" } })'
   )
   .replace(
-    "await import(`file://${infoJsonPath}`, {",
-    "await import(pathToFileURL(infoJsonPath).href, {"
+    /import\(path\.join\(basePath, "deno\.json"\), \{ with: \{ type: "json" \} \}\)/g,
+    'import(pathToFileURL(path.join(basePath, "deno.json")).href, { with: { type: "json" } })'
+  )
+  .replace(
+    /import\(`file:\/\/\$\{infoJsonPath\}`, \{ with: \{ type: "json" \} \}\)/g,
+    'import(pathToFileURL(infoJsonPath).href, { with: { type: "json" } })'
   )
 
 fs.writeFileSync(bundlePath, source)

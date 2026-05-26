@@ -1,12 +1,7 @@
 import { ContentRating, SourceIntents, type ExtensionInfo } from '@paperback/types'
 
-// alpha.57 exposes these capability names with plural/typo spellings.
-// Keep the public intent readable here while still using the installed enum values.
-const SEARCH_RESULT_PROVIDING = SourceIntents.SEARCH_RESULTS_PROVIDING
-const DISCOVER_SECTION_PROVIDING = SourceIntents.DISCOVER_SECIONS_PROVIDING
-
 const sourceInfo = {
-  version: '1.0.3',
+  version: '1.0.4',
   name: 'NineManga',
   icon: 'icon.png',
   description:
@@ -28,8 +23,8 @@ const sourceInfo = {
   ],
   capabilities: [
     SourceIntents.CHAPTER_PROVIDING,
-    SEARCH_RESULT_PROVIDING,
-    DISCOVER_SECTION_PROVIDING,
+    SourceIntents.SEARCH_RESULT_PROVIDING,
+    SourceIntents.DISCOVER_SECTION_PROVIDING,
     SourceIntents.CLOUDFLARE_BYPASS_PROVIDING,
   ],
 } satisfies ExtensionInfo

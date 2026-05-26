@@ -24,11 +24,17 @@ src/
 
 L'analisi dello ZIP usato per costruire la prima sorgente e in `docs/ninemanga-zip-analysis.md`.
 
+## Materiale locale
+
+La cartella `.local-reference/` puo contenere ZIP o repository di riferimento usati solo durante lo sviluppo. Anche `_reference_repos/` e ignorata da Git. Questi file non vengono letti a runtime da Paperback, non fanno parte del bundle e non devono essere caricati su GitHub.
+
 ## Installazione
 
 ```bash
 npm install
 ```
+
+Il progetto usa `@paperback/toolchain` e `@paperback/types` alla stessa versione. Lo script `postinstall` applica una patch locale al toolchain per correggere gli import ESM di percorsi assoluti su Windows; senza questa patch `npm run bundle` puo fallire con `ERR_UNSUPPORTED_ESM_URL_SCHEME`.
 
 ## Sviluppo locale
 

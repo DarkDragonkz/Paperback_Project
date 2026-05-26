@@ -8,8 +8,8 @@ import type {
   DiscoverSectionItem,
   DiscoverSectionProviding,
   Extension,
+  Metadata,
   PagedResults,
-  SearchFilter,
   SearchQuery,
   SearchResultItem,
   SearchResultsProviding,
@@ -56,13 +56,9 @@ class NineMangaExtension
     return this.client.getChapterDetails(chapter)
   }
 
-  async getSearchFilters(): Promise<SearchFilter[]> {
-    return []
-  }
-
   async getSearchResults(
-    query: SearchQuery,
-    metadata: unknown | undefined,
+    query: SearchQuery<Metadata>,
+    metadata: Metadata | undefined,
     sortingOption: SortingOption | undefined
   ): Promise<PagedResults<SearchResultItem>> {
     void metadata
@@ -76,7 +72,7 @@ class NineMangaExtension
 
   async getDiscoverSectionItems(
     section: DiscoverSection,
-    metadata: unknown | undefined
+    metadata: Metadata | undefined
   ): Promise<PagedResults<DiscoverSectionItem>> {
     return this.client.getDiscoverSectionItems(section, metadata)
   }
