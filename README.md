@@ -65,7 +65,7 @@ Il workflow `.github/workflows/bundle-deploy.yaml` parte su push verso `main`, u
 URL repository Paperback previsto:
 
 ```text
-https://DarkDragonkz.github.io/ninemanga-paperback-extension/
+https://DarkDragonkz.github.io/Paperback_Project/
 ```
 
 ## Creazione repository GitHub
@@ -73,7 +73,7 @@ https://DarkDragonkz.github.io/ninemanga-paperback-extension/
 ```bash
 git init
 git branch -M main
-git remote add origin https://github.com/DarkDragonkz/ninemanga-paperback-extension.git
+git remote add origin https://github.com/DarkDragonkz/Paperback_Project.git
 git add .
 git commit -m "Initial Paperback extensions repository"
 git push -u origin main
