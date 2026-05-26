@@ -17,7 +17,7 @@ import type {
 
 import { NineMangaClient } from './NineMangaClient'
 
-export class NineManga
+class NineMangaExtension
   implements Extension, ChapterProviding, SearchResultsProviding, DiscoverSectionProviding
 {
   private readonly client = new NineMangaClient()
@@ -61,3 +61,5 @@ export class NineManga
     return this.client.getDiscoverSectionItems(section, metadata)
   }
 }
+
+export const NineManga = new NineMangaExtension()
