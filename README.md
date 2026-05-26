@@ -1,6 +1,6 @@
-# ninemanga-paperback-extension
+# Paperback_Project
 
-Repository per estensioni Paperback iOS 0.9. NineManga e la prima sorgente inclusa, ma la struttura e pensata per aggiungere altre sorgenti senza spostare logica specifica nel livello globale.
+Repository multi-source per estensioni Paperback iOS 0.9. NineManga e la prima sorgente inclusa, ma la struttura resta pronta per aggiungere altri siti senza spostare logica specifica nel livello globale.
 
 ## Struttura
 
@@ -40,6 +40,18 @@ Per servire senza watch:
 
 ```bash
 npm run serve
+```
+
+Log da Paperback:
+
+```bash
+npm run logcat
+```
+
+Controllo TypeScript:
+
+```bash
+npm run tsc
 ```
 
 ## Build

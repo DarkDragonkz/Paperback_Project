@@ -147,11 +147,10 @@ export class NineMangaClient {
       }
     }
 
-    const url = new URL('/search/mobile/', BASE_URL)
-    url.searchParams.set('wd', query)
+    const url = withQueryParam('/search/mobile/', BASE_URL, 'wd', query)
 
     const items = await getJson<NineMangaMobileSearchItem[]>(
-      url.toString(),
+      url,
       await this.getHeaders()
     )
 

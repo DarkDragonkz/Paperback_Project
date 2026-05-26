@@ -230,6 +230,6 @@ export class NineMangaParser {
   }
 
   private sameUrl(left: string, right: string): boolean {
-    return new URL(left).toString() === new URL(right).toString()
+    return normalizeUrl(left, this.baseUrl) === normalizeUrl(right, this.baseUrl)
   }
 }

@@ -1,6 +1,6 @@
 {
-  "name": "ninemanga-paperback-extension",
-  "repositoryName": "ninemanga-paperback-extension",
+  "name": "paperback-project",
+  "repositoryName": "Paperback_Project",
   "version": "1.0.0",
   "description": "A modular Paperback iOS 0.9 extension repository, starting with NineManga.",
   "private": true,
