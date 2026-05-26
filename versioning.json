@@ -1,8 +1,8 @@
 {
-  "buildTime": "2026-05-26T16:27:56.815Z",
+  "buildTime": "2026-05-26T16:35:37.805Z",
   "builtWith": {
-    "toolchain": "1.0.0-alpha.57",
-    "types": "1.0.0-alpha.57"
+    "toolchain": "1.0.0-alpha.86",
+    "types": "1.0.0-alpha.86"
   },
   "repository": {
     "name": "Paperback_Project",
@@ -10,7 +10,7 @@
   },
   "sources": [
     {
-      "version": "1.0.3",
+      "version": "1.0.4",
       "name": "NineManga",
       "icon": "icon.png",
       "description": "NineManga source for a modular Paperback iOS 0.9 extension repository.",
