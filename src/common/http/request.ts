@@ -35,6 +35,9 @@ export async function getJson<T>(url: string, headers?: HeaderMap): Promise<T> {
 }
 
 function isCloudflareChallenge(response: Response, body: string): boolean {
+  const cfMitigated = headerValue(response.headers, 'cf-mitigated').toLowerCase()
+  if (cfMitigated === 'challenge') return true
+
   const server = headerValue(response.headers, 'server').toLowerCase()
   const isCloudflareServer = server.includes('cloudflare')
   const isBlockingStatus = response.status === 403 || response.status === 503
