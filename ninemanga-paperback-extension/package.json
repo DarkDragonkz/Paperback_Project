@@ -1,0 +1,25 @@
+{
+  "name": "ninemanga-paperback-extension",
+  "repositoryName": "ninemanga-paperback-extension",
+  "version": "1.0.0",
+  "description": "A modular Paperback iOS 0.9 extension repository, starting with NineManga.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "postinstall": "node scripts/patch-paperback-toolchain.mjs",
+    "tsc": "tsc --noEmit",
+    "bundle": "paperback-cli bundle",
+    "serve": "paperback-cli serve",
+    "dev": "paperback-cli serve --watch",
+    "logcat": "paperback-cli logcat",
+    "test": "npm run tsc && npm run bundle"
+  },
+  "dependencies": {
+    "@paperback/types": "1.0.0-alpha.57",
+    "cheerio": "^1.1.2"
+  },
+  "devDependencies": {
+    "@paperback/toolchain": "1.0.0-alpha.57",
+    "typescript": "^5.9.3"
+  }
+}
