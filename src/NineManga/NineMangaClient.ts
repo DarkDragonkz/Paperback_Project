@@ -20,6 +20,7 @@ import { normalizeUrl, pathIdFromUrl, withQueryParam } from '../common/utils/url
 import type {
   NineMangaListingConfig,
   NineMangaListingItem,
+  NineMangaChapterPage,
   NineMangaMobileSearchItem,
   NineMangaSectionId,
 } from './NineMangaModels'
@@ -85,8 +86,27 @@ export class NineMangaClient {
     const chapterUrl = this.withWarning(
       chapter.additionalInfo?.url ?? normalizeUrl(chapter.chapterId, BASE_URL)
     )
-    const firstPage = await this.getHtml(chapterUrl)
-    const pageRefs = this.parser.parseChapterPage(firstPage.body, firstPage.url)
+    const candidates = this.chapterReaderCandidates(chapterUrl)
+    let pageRefs: NineMangaChapterPage[] = []
+
+    for (const candidate of candidates) {
+      const firstPage = await this.getHtml(candidate)
+      pageRefs = this.parser.parseChapterPage(firstPage.body, firstPage.url)
+
+      if (pageRefs.length > 0) break
+
+      const sourceSelectionUrl = this.parser.parseSourceSelectionUrl(firstPage.body)
+      if (sourceSelectionUrl) {
+        console.log(`[NineManga] Following chapter source selector from ${candidate}`)
+        const sourcePage = await this.getHtml(sourceSelectionUrl, candidate)
+        pageRefs = this.parser.parseChapterPage(sourcePage.body, sourcePage.url)
+
+        if (pageRefs.length > 0) break
+      }
+
+      console.log(`[NineManga] No reader pages found at ${candidate}; trying fallback`)
+    }
+
     const pages: string[] = []
 
     for (const pageRef of pageRefs) {
@@ -257,16 +277,33 @@ export class NineMangaClient {
     return ContentRating.EVERYONE
   }
 
-  private async getHtml(url: string) {
-    return getText(url, await this.getHeaders())
+  private async getHtml(url: string, referer = BASE_URL) {
+    return getText(url, await this.getHeaders(referer))
   }
 
   private withWarning(url: string): string {
     return url ? withQueryParam(url, BASE_URL, 'waring', '1') : ''
   }
 
-  private async getHeaders() {
-    return mergeHeaders(await defaultBrowserHeaders(BASE_URL), {
+  private chapterReaderCandidates(url: string): string[] {
+    const base = url.split('?')[0] ?? url
+    const candidates = [url]
+
+    if (base.endsWith('.html')) {
+      candidates.push(this.withWarning(base.replace(/\.html$/, '/')))
+      candidates.push(this.withWarning(base.replace(/\.html$/, '-1-1.html')))
+    } else if (base.endsWith('/')) {
+      candidates.push(this.withWarning(`${base.slice(0, -1)}-1-1.html`))
+    } else {
+      candidates.push(this.withWarning(`${base}/`))
+      candidates.push(this.withWarning(`${base}-1-1.html`))
+    }
+
+    return uniqueStrings(candidates.filter(Boolean))
+  }
+
+  private async getHeaders(referer = BASE_URL) {
+    return mergeHeaders(await defaultBrowserHeaders(referer), {
       accept: 'text/html,application/json;q=0.9,*/*;q=0.8',
     })
   }

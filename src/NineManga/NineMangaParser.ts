@@ -142,6 +142,15 @@ export class NineMangaParser {
     return uniqueBy(pages, (page) => page.url)
   }
 
+  parseSourceSelectionUrl(html: string): string | undefined {
+    const $ = cheerio.load(html)
+    const sourceUrl =
+      $('a.vision-button[href*="/go/jump/"][href*="cid="]').first().attr('href') ||
+      $('a[href*="/go/jump/"][href*="cid="]').first().attr('href')
+
+    return normalizeUrl(sourceUrl, this.baseUrl) || undefined
+  }
+
   parseImage(html: string): string | undefined {
     const $ = cheerio.load(html)
     return normalizeUrl($('img.manga_pic[src]').first().attr('src'), this.baseUrl) || undefined
