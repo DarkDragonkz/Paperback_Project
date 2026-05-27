@@ -29,6 +29,7 @@ export async function getText(url: string, headers?: HeaderMap): Promise<TextRes
   const body = Application.arrayBufferToUTF8String(data)
 
   if (isCloudflareChallenge(response, body)) {
+    console.log(`[NineManga] Cloudflare challenge detected: ${response.status} ${request.url}`)
     throwCloudflareError(request)
   }
 
@@ -76,13 +77,20 @@ function isCloudflareChallenge(response: Response, body: string): boolean {
   const isCloudflareServer = server.includes('cloudflare')
   const isBlockingStatus = response.status === 403 || response.status === 503
   const normalizedBody = body.toLowerCase()
+  const hasChallengePageBody =
+    normalizedBody.includes('just a moment') ||
+    normalizedBody.includes('attention required') ||
+    normalizedBody.includes('cf-error-code') ||
+    normalizedBody.includes('checking if the site connection is secure')
   const hasCloudflareBody =
     normalizedBody.includes('cloudflare') &&
-    (normalizedBody.includes('attention required') ||
-      normalizedBody.includes('cf-ray') ||
-      normalizedBody.includes('challenge-platform'))
+    (hasChallengePageBody || normalizedBody.includes('cf-ray'))
 
-  return (isCloudflareServer && isBlockingStatus) || hasCloudflareBody
+  return (
+    (isCloudflareServer && isBlockingStatus) ||
+    (isBlockingStatus && hasCloudflareBody) ||
+    (hasChallengePageBody && normalizedBody.includes('challenge-platform'))
+  )
 }
 
 function headerValue(headers: Record<string, string>, name: string): string {

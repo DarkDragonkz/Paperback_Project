@@ -49,12 +49,15 @@ class NineMangaExtension
 
     for (const cookie of cookies) {
       if (this.isCloudflareCookie(cookie)) {
-        const normalizedCookie = this.normalizeCloudflareCookie(cookie)
-        this.cookieStorage.setCookie(normalizedCookie)
-        console.log(
-          `[NineManga] Stored Cloudflare cookie ${normalizedCookie.name} for ${normalizedCookie.domain}${normalizedCookie.path ?? '/'}`
-        )
-        savedCookies += 1
+        const normalizedCookies = this.normalizeCloudflareCookies(cookie)
+
+        for (const normalizedCookie of normalizedCookies) {
+          this.cookieStorage.setCookie(normalizedCookie)
+          console.log(
+            `[NineManga] Stored Cloudflare cookie ${normalizedCookie.name} for ${normalizedCookie.domain}${normalizedCookie.path ?? '/'}`
+          )
+          savedCookies += 1
+        }
       }
     }
 
@@ -117,13 +120,27 @@ class NineMangaExtension
     )
   }
 
-  private normalizeCloudflareCookie(cookie: Cookie): Cookie {
-    return {
+  private normalizeCloudflareCookies(cookie: Cookie): Cookie[] {
+    const normalizedCookie = {
       ...cookie,
       domain: cookie.domain || COOKIE_DOMAIN,
       path: cookie.path || '/',
       expires: cookie.expires ?? new Date(Date.now() + CLOUDFLARE_COOKIE_TTL_MS),
     }
+
+    if (this.isNineMangaCookieDomain(normalizedCookie.domain)) return [normalizedCookie]
+
+    return [
+      normalizedCookie,
+      {
+        ...normalizedCookie,
+        domain: COOKIE_DOMAIN,
+      },
+    ]
+  }
+
+  private isNineMangaCookieDomain(domain: string): boolean {
+    return domain.replace(/^\./, '').toLowerCase().endsWith(COOKIE_DOMAIN)
   }
 }
 
