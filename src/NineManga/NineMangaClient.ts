@@ -86,13 +86,15 @@ export class NineMangaClient {
   }
 
   async getChapterDetails(chapter: Chapter): Promise<ChapterDetails> {
-    this.setReaderUnlockCookie(chapter)
+    const preparedChapter = await this.prepareReaderChapter(chapter)
+    this.setReaderUnlockCookie(preparedChapter)
 
     const chapterUrl = this.withWarning(
-      chapter.additionalInfo?.url ?? normalizeUrl(chapter.chapterId, BASE_URL)
+      preparedChapter.additionalInfo?.url ?? normalizeUrl(preparedChapter.chapterId, BASE_URL)
     )
     const candidates = this.chapterReaderCandidates(chapterUrl)
     let pageRefs: NineMangaChapterPage[] = []
+    let handledSourceSelection = false
 
     for (const candidate of candidates) {
       const firstPage = await this.getHtml(candidate)
@@ -102,16 +104,35 @@ export class NineMangaClient {
 
       const sourceSelectionUrl = this.parser.parseSourceSelectionUrl(firstPage.body)
       if (sourceSelectionUrl) {
-        console.log(`[NineManga] Following chapter source selector from ${candidate}`)
-        const sourcePage = await this.getHtml(sourceSelectionUrl, candidate)
-        pageRefs = this.parser.parseChapterPage(sourcePage.body, sourcePage.url)
+        console.log(`[NineManga] Found chapter source selector at ${candidate}`)
+        const externalChapterId = this.parser.parseExternalSourceChapterId(firstPage.body)
 
-        if (pageRefs.length > 0) break
+        if (externalChapterId && !handledSourceSelection) {
+          handledSourceSelection = true
+          this.setReaderUnlockCookie(preparedChapter, externalChapterId)
+
+          const canonicalUrl = this.canonicalChapterUrl(preparedChapter, externalChapterId)
+          const retryCandidates = uniqueStrings([
+            canonicalUrl,
+            ...this.chapterReaderCandidates(canonicalUrl || candidate),
+          ].filter(Boolean))
+
+          for (const retryCandidate of retryCandidates) {
+            console.log(`[NineManga] Retrying reader after source selector: ${retryCandidate}`)
+            const retryPage = await this.getHtml(retryCandidate, candidate)
+            pageRefs = this.parser.parseChapterPage(retryPage.body, retryPage.url)
+
+            if (pageRefs.length > 0) break
+          }
+
+          if (pageRefs.length > 0) break
+        }
       }
 
       const externalChapterId = this.parser.parseExternalSourceChapterId(firstPage.body)
       if (externalChapterId) {
-        const canonicalUrl = this.canonicalChapterUrl(chapter, externalChapterId)
+        this.setReaderUnlockCookie(preparedChapter, externalChapterId)
+        const canonicalUrl = this.canonicalChapterUrl(preparedChapter, externalChapterId)
         if (canonicalUrl && !candidates.includes(canonicalUrl)) {
           console.log(`[NineManga] Rebuilding NineManga chapter URL from external source id ${externalChapterId}`)
           const canonicalPage = await this.getHtml(canonicalUrl, candidate)
@@ -138,8 +159,8 @@ export class NineMangaClient {
     }
 
     return {
-      id: chapter.chapterId,
-      mangaId: chapter.sourceManga.mangaId,
+      id: preparedChapter.chapterId,
+      mangaId: preparedChapter.sourceManga.mangaId,
       pages: uniqueStrings(pages),
     }
   }
@@ -370,9 +391,38 @@ export class NineMangaClient {
     })
   }
 
-  private setReaderUnlockCookie(chapter: Chapter): void {
+  private async prepareReaderChapter(chapter: Chapter): Promise<Chapter> {
+    if (chapter.additionalInfo?.bookId) return chapter
+
+    const sourceMangaId = chapter.sourceManga.mangaId
+    if (!sourceMangaId) return chapter
+
+    try {
+      const details = await this.getMangaData(sourceMangaId)
+      const matchingChapter = details.chapters.find(
+        (candidate) => this.numericChapterId(candidate.additionalInfo?.url ?? candidate.chapterId) ===
+          this.numericChapterId(chapter.additionalInfo?.url ?? chapter.chapterId)
+      )
+
+      if (!matchingChapter?.additionalInfo?.bookId) return chapter
+
+      return {
+        ...chapter,
+        additionalInfo: {
+          ...chapter.additionalInfo,
+          bookId: matchingChapter.additionalInfo.bookId,
+          url: chapter.additionalInfo?.url ?? matchingChapter.additionalInfo.url,
+        },
+      }
+    } catch (error) {
+      console.log(`[NineManga] Could not refresh manga metadata for reader unlock: ${String(error)}`)
+      return chapter
+    }
+  }
+
+  private setReaderUnlockCookie(chapter: Chapter, chapterIdOverride?: string): void {
     const bookId = chapter.additionalInfo?.bookId
-    const chapterId = this.numericChapterId(chapter.additionalInfo?.url ?? chapter.chapterId)
+    const chapterId = chapterIdOverride || this.numericChapterId(chapter.additionalInfo?.url ?? chapter.chapterId)
     if (!this.setCookie || !bookId || !chapterId) return
 
     this.setCookie({

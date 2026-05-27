@@ -167,10 +167,7 @@ export class NineMangaParser {
       $('a.vision-button[href*="/go/"]').first().attr('href') ||
       $('a[href*="/go/jump/"][href*="cid="]').first().attr('href')
 
-    const normalizedUrl = normalizeUrl(sourceUrl, this.baseUrl)
-    if (!normalizedUrl.startsWith(this.baseUrl)) return undefined
-
-    return normalizedUrl || undefined
+    return normalizeUrl(sourceUrl, this.baseUrl) || undefined
   }
 
   parseExternalSourceChapterId(html: string): string | undefined {
