@@ -104,6 +104,18 @@ export class NineMangaClient {
         if (pageRefs.length > 0) break
       }
 
+      const externalChapterId = this.parser.parseExternalSourceChapterId(firstPage.body)
+      if (externalChapterId) {
+        const canonicalUrl = this.canonicalChapterUrl(chapter, externalChapterId)
+        if (canonicalUrl && !candidates.includes(canonicalUrl)) {
+          console.log(`[NineManga] Rebuilding NineManga chapter URL from external source id ${externalChapterId}`)
+          const canonicalPage = await this.getHtml(canonicalUrl, candidate)
+          pageRefs = this.parser.parseChapterPage(canonicalPage.body, canonicalPage.url)
+
+          if (pageRefs.length > 0) break
+        }
+      }
+
       console.log(`[NineManga] No reader pages found at ${candidate}; trying fallback`)
     }
 
@@ -300,6 +312,29 @@ export class NineMangaClient {
     }
 
     return uniqueStrings(candidates.filter(Boolean))
+  }
+
+  private canonicalChapterUrl(chapter: Chapter, chapterId: string): string {
+    const title =
+      chapter.sourceManga.mangaInfo.primaryTitle ||
+      this.titleFromChapterUrl(chapter.additionalInfo?.url ?? chapter.chapterId)
+
+    if (!title || !chapterId) return ''
+
+    const encodedTitle = encodeURIComponent(title.replace(/\s+Manga$/i, '').trim())
+    return this.withWarning(`${BASE_URL}chapter/${encodedTitle}/${chapterId}.html`)
+  }
+
+  private titleFromChapterUrl(url: string): string {
+    return this.safeDecode(url.match(/\/chapter\/([^/]+)\//)?.[1]?.replace(/\+/g, ' ') ?? '')
+  }
+
+  private safeDecode(value: string): string {
+    try {
+      return decodeURIComponent(value)
+    } catch {
+      return value
+    }
   }
 
   private async getHeaders(referer = BASE_URL) {

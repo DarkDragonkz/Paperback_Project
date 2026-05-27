@@ -117,6 +117,14 @@ export class NineMangaParser {
 
   parseChapterPage(html: string, currentUrl: string): NineMangaChapterPage[] {
     const $ = cheerio.load(html)
+    const allImageUrls = this.parseAllImageUrls(html)
+    if (allImageUrls.length > 0) {
+      return allImageUrls.map((imageUrl, index) => ({
+        url: `${currentUrl}#page-${index + 1}`,
+        imageUrl,
+      }))
+    }
+
     const imageUrl = normalizeUrl($('img.manga_pic[src]').first().attr('src'), this.baseUrl)
     const normalizedCurrentUrl = this.withWarning(currentUrl)
     const pages: NineMangaChapterPage[] = []
@@ -146,14 +154,31 @@ export class NineMangaParser {
     const $ = cheerio.load(html)
     const sourceUrl =
       $('a.vision-button[href*="/go/jump/"][href*="cid="]').first().attr('href') ||
+      $('a.vision-button[href*="/go/"]').first().attr('href') ||
       $('a[href*="/go/jump/"][href*="cid="]').first().attr('href')
 
-    return normalizeUrl(sourceUrl, this.baseUrl) || undefined
+    const normalizedUrl = normalizeUrl(sourceUrl, this.baseUrl)
+    if (!normalizedUrl.startsWith(this.baseUrl)) return undefined
+
+    return normalizedUrl || undefined
+  }
+
+  parseExternalSourceChapterId(html: string): string | undefined {
+    const $ = cheerio.load(html)
+    const sourceUrl =
+      $('a.vision-button[href*="/go/"]').first().attr('href') ||
+      $('a[href*="/go/"][href*="cid="]').first().attr('href')
+
+    return this.chapterIdFromExternalSource(sourceUrl) || undefined
   }
 
   parseImage(html: string): string | undefined {
     const $ = cheerio.load(html)
-    return normalizeUrl($('img.manga_pic[src]').first().attr('src'), this.baseUrl) || undefined
+    return (
+      this.parseAllImageUrls(html)[0] ||
+      normalizeUrl($('img.manga_pic[src]').first().attr('src'), this.baseUrl) ||
+      undefined
+    )
   }
 
   toSourceManga(data: NineMangaMangaData): SourceManga {
@@ -287,4 +312,27 @@ export class NineMangaParser {
   private withWarning(url: string): string {
     return url ? withQueryParam(url, this.baseUrl, 'waring', '1') : ''
   }
+
+  private parseAllImageUrls(html: string): string[] {
+    const images: string[] = []
+    const match = html.match(/all_imgs_url\s*:\s*\[([\s\S]*?)\]/)
+    if (!match?.[1]) return images
+
+    for (const imageMatch of match[1].matchAll(/["']([^"']+\.(?:webp|jpe?g|png)(?:\?[^"']*)?)["']/gi)) {
+      const imageUrl = normalizeUrl(imageMatch[1], this.baseUrl)
+      if (imageUrl) images.push(imageUrl)
+    }
+
+    return uniqueStrings(images)
+  }
+
+  private chapterIdFromExternalSource(sourceUrl: string | undefined): string {
+    if (!sourceUrl) return ''
+
+    const source = sourceUrl.replace(/&amp;/g, '&')
+    const queryId = source.match(/[?&]cid=([^&#/]+)/)?.[1]
+    const pathId = source.match(/\/go\/[^/?#]+\/(\d+)(?:[/?#]|$)/)?.[1]
+    return queryId || pathId || ''
+  }
+
 }

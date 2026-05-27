@@ -1,9 +1,11 @@
 import { CloudflareError, type Request, type Response } from '@paperback/types'
 
+import { normalizeUrl } from '../utils/url'
 import type { HeaderMap } from './headers'
 
 const CLOUDFLARE_BYPASS_STATE_PREFIX = 'common:http:cloudflare-bypass-requested:'
 const CLOUDFLARE_BYPASS_COOLDOWN_MS = 5_000
+const MAX_REDIRECTS = 5
 
 export interface TextResponse {
   url: string
@@ -19,6 +21,14 @@ export class CloudflareBypassInProgressError extends Error {
 }
 
 export async function getText(url: string, headers?: HeaderMap): Promise<TextResponse> {
+  return getTextWithRedirects(url, headers, 0)
+}
+
+async function getTextWithRedirects(
+  url: string,
+  headers: HeaderMap | undefined,
+  redirectCount: number
+): Promise<TextResponse> {
   const request: Request = {
     url,
     method: 'GET',
@@ -31,6 +41,21 @@ export async function getText(url: string, headers?: HeaderMap): Promise<TextRes
   if (isCloudflareChallenge(response, body)) {
     console.log(`[NineManga] Cloudflare challenge detected: ${response.status} ${request.url}`)
     throwCloudflareError(request)
+  }
+
+  const redirectUrl = redirectLocation(response)
+  if (redirectUrl && redirectCount < MAX_REDIRECTS) {
+    const nextUrl = normalizeUrl(redirectUrl, response.url || request.url)
+    console.log(`[NineManga] Following redirect ${response.status}: ${nextUrl}`)
+
+    return getTextWithRedirects(
+      nextUrl,
+      {
+        ...headers,
+        referer: response.url || request.url,
+      },
+      redirectCount + 1
+    )
   }
 
   return {
@@ -99,6 +124,12 @@ function headerValue(headers: Record<string, string>, name: string): string {
   )
 
   return match?.[1] ?? ''
+}
+
+function redirectLocation(response: Response): string {
+  if (response.status < 300 || response.status >= 400) return ''
+
+  return headerValue(response.headers, 'location')
 }
 
 function cloudflareBypassStateKey(url: string): string {
