@@ -138,7 +138,7 @@ export class NineMangaClient {
     )
 
     for (const candidate of candidates) {
-      const candidateChapterId = this.numericChapterId(candidate)
+      const candidateChapterId = this.chapterIdFromUrl(candidate)
       if (candidateChapterId && failedSourceChapterIds.has(candidateChapterId)) {
         console.log(`[NineManga] Stopping fallback loop for failed cid ${candidateChapterId}`)
         break
@@ -174,7 +174,9 @@ export class NineMangaClient {
     if (!sourceSelectionUrl) return []
 
     const externalChapterId =
-      this.parser.parseExternalSourceChapterId(html) || this.numericChapterId(sourceSelectionUrl)
+      this.parser.parseExternalSourceChapterId(html) ||
+      this.parser.parseExternalSourceChapterIdFromUrl(sourceSelectionUrl) ||
+      this.chapterIdFromUrl(sourceSelectionUrl)
     const sourceKey = this.sourceFlowKey(sourceSelectionUrl)
 
     if (attemptedSourceUrls.has(sourceKey)) {
@@ -434,7 +436,7 @@ export class NineMangaClient {
 
   private setReaderUnlockCookie(chapter: Chapter, chapterIdOverride?: string): void {
     const bookId = chapter.additionalInfo?.bookId
-    const chapterId = chapterIdOverride || this.numericChapterId(chapter.additionalInfo?.url ?? chapter.chapterId)
+    const chapterId = chapterIdOverride || this.chapterIdFromUrl(chapter.additionalInfo?.url ?? chapter.chapterId)
     if (!this.setCookie || !bookId || !chapterId) return
 
     this.setCookie({
@@ -456,6 +458,10 @@ export class NineMangaClient {
 
   private numericChapterId(value: string): string {
     return value.match(/\/(\d+)(?:[-/.?]|$)/)?.[1] ?? ''
+  }
+
+  private chapterIdFromUrl(value: string): string {
+    return this.parser.parseExternalSourceChapterIdFromUrl(value) || this.numericChapterId(value)
   }
 
   private readPage(metadata: Metadata | undefined): number {

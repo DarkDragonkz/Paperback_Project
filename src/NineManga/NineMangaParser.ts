@@ -196,7 +196,17 @@ export class NineMangaParser {
       $('a.vision-button[href*="/go/"]').first().attr('href') ||
       $('a[href*="/go/"][href*="cid="]').first().attr('href')
 
-    return this.chapterIdFromExternalSource(sourceUrl) || undefined
+    return this.parseExternalSourceChapterIdFromUrl(sourceUrl) || undefined
+  }
+
+  parseExternalSourceChapterIdFromUrl(sourceUrl: string | undefined): string {
+    if (!sourceUrl) return ''
+
+    const source = sourceUrl.replace(/&amp;/g, '&')
+    const queryId = source.match(/[?&]cid=([^&#/]+)/)?.[1]
+    const pathId = source.match(/\/go\/[^/?#]+\/(\d+)(?:[/?#]|$)/)?.[1]
+    const suffixId = source.match(/\/(\d+)\.html(?:[?#]|$)/)?.[1]
+    return queryId || pathId || suffixId || ''
   }
 
   parseImage(html: string): string | undefined {
@@ -444,11 +454,7 @@ export class NineMangaParser {
   private chapterIdFromExternalSource(sourceUrl: string | undefined): string {
     if (!sourceUrl) return ''
 
-    const source = sourceUrl.replace(/&amp;/g, '&')
-    const queryId = source.match(/[?&]cid=([^&#/]+)/)?.[1]
-    const pathId = source.match(/\/go\/[^/?#]+\/(\d+)(?:[/?#]|$)/)?.[1]
-    const suffixId = source.match(/\/(\d+)\.html(?:[?#]|$)/)?.[1]
-    return queryId || pathId || suffixId || ''
+    return this.parseExternalSourceChapterIdFromUrl(sourceUrl)
   }
 
 }
