@@ -3,7 +3,7 @@ import { CloudflareError, type Request, type Response } from '@paperback/types'
 import type { HeaderMap } from './headers'
 
 const CLOUDFLARE_BYPASS_STATE_PREFIX = 'common:http:cloudflare-bypass-requested:'
-const CLOUDFLARE_BYPASS_COOLDOWN_MS = 30_000
+const CLOUDFLARE_BYPASS_COOLDOWN_MS = 5_000
 
 export interface TextResponse {
   url: string
@@ -64,7 +64,7 @@ function throwCloudflareError(request: Request): never {
 
   throw new CloudflareError({
     ...request,
-    url: originUrl(request.url),
+    method: request.method ?? 'GET',
   })
 }
 
@@ -99,11 +99,6 @@ function cloudflareBypassStateKey(url: string): string {
 
 function hostKey(url: string): string {
   return originParts(url).host.toLowerCase()
-}
-
-function originUrl(url: string): string {
-  const { protocol, host } = originParts(url)
-  return protocol && host ? `${protocol}//${host}/` : url
 }
 
 function originParts(url: string): { protocol: string; host: string } {

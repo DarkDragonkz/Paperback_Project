@@ -267,7 +267,7 @@ export class NineMangaClient {
 
   private async getHeaders() {
     return mergeHeaders(await defaultBrowserHeaders(BASE_URL), {
-      Accept: 'text/html,application/json;q=0.9,*/*;q=0.8',
+      accept: 'text/html,application/json;q=0.9,*/*;q=0.8',
     })
   }
 

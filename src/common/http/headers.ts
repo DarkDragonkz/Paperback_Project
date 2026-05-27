@@ -6,8 +6,8 @@ export function mergeHeaders(...headers: Array<HeaderMap | undefined>): HeaderMa
 
 export async function defaultBrowserHeaders(baseUrl: string): Promise<HeaderMap> {
   return {
-    'User-Agent': await Application.getDefaultUserAgent(),
-    Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-    Referer: baseUrl,
+    'user-agent': await Application.getDefaultUserAgent(),
+    accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+    referer: baseUrl,
   }
 }

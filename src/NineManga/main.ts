@@ -22,6 +22,8 @@ import { resetCloudflareBypassState } from '../common/http/request'
 import { NineMangaClient } from './NineMangaClient'
 
 const BASE_URL = 'https://www.ninemanga.com/'
+const COOKIE_DOMAIN = 'ninemanga.com'
+const CLOUDFLARE_COOKIE_TTL_MS = 2 * 60 * 60 * 1000
 
 class NineMangaExtension
   implements
@@ -47,7 +49,11 @@ class NineMangaExtension
 
     for (const cookie of cookies) {
       if (this.isCloudflareCookie(cookie)) {
-        this.cookieStorage.setCookie(cookie)
+        const normalizedCookie = this.normalizeCloudflareCookie(cookie)
+        this.cookieStorage.setCookie(normalizedCookie)
+        console.log(
+          `[NineManga] Stored Cloudflare cookie ${normalizedCookie.name} for ${normalizedCookie.domain}${normalizedCookie.path ?? '/'}`
+        )
         savedCookies += 1
       }
     }
@@ -63,8 +69,8 @@ class NineMangaExtension
       ...request,
       headers: {
         ...request.headers,
-        Referer: BASE_URL,
-        'User-Agent': await Application.getDefaultUserAgent(),
+        referer: BASE_URL,
+        'user-agent': await Application.getDefaultUserAgent(),
       },
     }
   }
@@ -109,6 +115,15 @@ class NineMangaExtension
       cookie.name.startsWith('_cf') ||
       cookie.name.startsWith('__cf')
     )
+  }
+
+  private normalizeCloudflareCookie(cookie: Cookie): Cookie {
+    return {
+      ...cookie,
+      domain: cookie.domain || COOKIE_DOMAIN,
+      path: cookie.path || '/',
+      expires: cookie.expires ?? new Date(Date.now() + CLOUDFLARE_COOKIE_TTL_MS),
+    }
   }
 }
 
