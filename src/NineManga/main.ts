@@ -22,7 +22,7 @@ import { resetCloudflareBypassState } from '../common/http/request'
 import { NineMangaClient } from './NineMangaClient'
 
 const BASE_URL = 'https://www.ninemanga.com/'
-const SOURCE_VERSION = '1.0.18'
+const SOURCE_VERSION = '1.0.19'
 const COOKIE_DOMAIN = 'ninemanga.com'
 const CLOUDFLARE_COOKIE_TTL_MS = 2 * 60 * 60 * 1000
 
