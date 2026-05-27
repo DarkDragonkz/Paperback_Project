@@ -13,7 +13,7 @@ import {
 } from '@paperback/types'
 
 import { defaultBrowserHeaders, mergeHeaders } from '../common/http/headers'
-import { getJson, getText } from '../common/http/request'
+import { CloudflareBypassInProgressError, getJson, getText } from '../common/http/request'
 import type { PageMetadata } from '../common/models/Pagination'
 import { uniqueStrings } from '../common/utils/array'
 import { normalizeUrl, pathIdFromUrl, withQueryParam } from '../common/utils/url'
@@ -82,7 +82,9 @@ export class NineMangaClient {
   }
 
   async getChapterDetails(chapter: Chapter): Promise<ChapterDetails> {
-    const chapterUrl = chapter.additionalInfo?.url ?? normalizeUrl(chapter.chapterId, BASE_URL)
+    const chapterUrl = this.withWarning(
+      chapter.additionalInfo?.url ?? normalizeUrl(chapter.chapterId, BASE_URL)
+    )
     const firstPage = await this.getHtml(chapterUrl)
     const pageRefs = this.parser.parseChapterPage(firstPage.body, firstPage.url)
     const pages: string[] = []
@@ -93,7 +95,7 @@ export class NineMangaClient {
         continue
       }
 
-      const pageHtml = await this.getHtml(pageRef.url)
+      const pageHtml = await this.getHtml(this.withWarning(pageRef.url))
       const imageUrl = this.parser.parseImage(pageHtml.body)
       if (imageUrl) pages.push(imageUrl)
     }
@@ -123,7 +125,7 @@ export class NineMangaClient {
     if (!config) return EndOfPageResults
 
     const page = this.readPage(metadata)
-    const items = await this.getListing(config, page)
+    const items = await this.getDiscoverListing(config, page)
     if (items.length === 0) return EndOfPageResults
 
     return {
@@ -162,7 +164,7 @@ export class NineMangaClient {
   }
 
   private async getMangaData(mangaId: string) {
-    const mangaUrl = normalizeUrl(mangaId, BASE_URL)
+    const mangaUrl = this.withWarning(normalizeUrl(mangaId, BASE_URL))
     const firstResponse = await this.getHtml(mangaUrl)
     const firstData = this.parser.parseManga(
       firstResponse.body,
@@ -198,6 +200,22 @@ export class NineMangaClient {
     const path = page === 1 ? config.path : `${config.ajaxPrefix}${page}`
     const response = await this.getHtml(normalizeUrl(path, BASE_URL))
     return this.parser.parseListing(response.body)
+  }
+
+  private async getDiscoverListing(
+    config: NineMangaListingConfig,
+    page: number
+  ): Promise<NineMangaListingItem[]> {
+    try {
+      return await this.getListing(config, page)
+    } catch (error) {
+      if (error instanceof CloudflareBypassInProgressError) {
+        console.log(`[NineManga] Skipping ${config.id}; Cloudflare bypass is already pending`)
+        return []
+      }
+
+      throw error
+    }
   }
 
   private toDiscoverItem(
@@ -241,6 +259,10 @@ export class NineMangaClient {
 
   private async getHtml(url: string) {
     return getText(url, await this.getHeaders())
+  }
+
+  private withWarning(url: string): string {
+    return url ? withQueryParam(url, BASE_URL, 'waring', '1') : ''
   }
 
   private async getHeaders() {

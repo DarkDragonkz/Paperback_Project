@@ -9,7 +9,7 @@ import * as cheerio from 'cheerio'
 
 import { cleanText, safeAttr, safeText, splitCommaList } from '../common/parsing/html'
 import { uniqueBy, uniqueStrings } from '../common/utils/array'
-import { normalizeUrl, pathIdFromUrl } from '../common/utils/url'
+import { normalizeUrl, pathIdFromUrl, withQueryParam } from '../common/utils/url'
 import type {
   NineMangaChapterPage,
   NineMangaListingItem,
@@ -19,6 +19,13 @@ import type {
 
 const ADULT_TAGS = new Set(['adult', 'hentai', 'smut'])
 const MATURE_TAGS = new Set(['mature', 'ecchi'])
+const NON_GENRE_LABELS = new Set([
+  'genres',
+  'ongoing',
+  'completed',
+  '0-9',
+  ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split(''),
+])
 
 export class NineMangaParser {
   constructor(private readonly baseUrl: string) {}
@@ -60,12 +67,9 @@ export class NineMangaParser {
     const rawTitle = safeText($, 'div.book-info h1 b')
     const title = rawTitle.replace(/\s+Manga$/i, '') || rawTitle
     const metadata = this.parseMetadata($)
-    const genres = splitCommaList(metadata.Genres ?? '')
+    const genres = this.parseGenres($, metadata)
     const warningUrl = normalizeUrl($('a[href*="waring=1"]').first().attr('href'), this.baseUrl) || undefined
-    const synopsis =
-      safeText($, 'dd.short-info p span') ||
-      safeText($, 'dd.short-info span') ||
-      safeText($, 'dd.short-info p')
+    const synopsis = this.parseSynopsis($)
     const isAdult = Boolean(warningUrl) || this.hasAdultTags(genres)
 
     return {
@@ -114,20 +118,25 @@ export class NineMangaParser {
   parseChapterPage(html: string, currentUrl: string): NineMangaChapterPage[] {
     const $ = cheerio.load(html)
     const imageUrl = normalizeUrl($('img.manga_pic[src]').first().attr('src'), this.baseUrl)
+    const normalizedCurrentUrl = this.withWarning(currentUrl)
     const pages: NineMangaChapterPage[] = []
 
     $('select.sl-page option[value]').each((_, option) => {
-      const pageUrl = normalizeUrl($(option).attr('value'), this.baseUrl)
+      const pageOption = $(option)
+      const pageUrl = this.withWarning(normalizeUrl(pageOption.attr('value'), this.baseUrl))
       if (!pageUrl) return
 
       pages.push({
         url: pageUrl,
-        imageUrl: this.sameUrl(pageUrl, currentUrl) ? imageUrl : undefined,
+        imageUrl:
+          pageOption.attr('selected') !== undefined || this.sameUrl(pageUrl, normalizedCurrentUrl)
+            ? imageUrl
+            : undefined,
       })
     })
 
     if (pages.length === 0 && imageUrl) {
-      pages.push({ url: currentUrl, imageUrl })
+      pages.push({ url: normalizedCurrentUrl, imageUrl })
     }
 
     return uniqueBy(pages, (page) => page.url)
@@ -180,6 +189,7 @@ export class NineMangaParser {
       const longAnchor = item.find('div.chapter-name.long a[href]').first()
       const shortTitle = cleanText(item.find('div.chapter-name.short a').first().text()).replace(/\s*new$/i, '')
       const chapterUrl = normalizeUrl(longAnchor.attr('href'), this.baseUrl)
+      const warningChapterUrl = this.withWarning(chapterUrl)
       const longTitle = cleanText(longAnchor.text()).replace(/\s*new$/i, '')
       const title = longTitle || shortTitle
 
@@ -202,12 +212,44 @@ export class NineMangaParser {
         title,
         sortingIndex: index,
         additionalInfo: {
-          url: chapterUrl,
+          url: warningChapterUrl,
         },
       })
     })
 
     return chapters
+  }
+
+  private parseSynopsis($: cheerio.CheerioAPI): string {
+    let synopsis = ''
+
+    $('dd.short-info p').each((_, element) => {
+      const row = $(element)
+      const label = cleanText(row.find('b').first().text()).replace(/:$/, '').toLowerCase()
+      if (label !== 'summary') return
+
+      synopsis = cleanText(row.find('span').first().text())
+      if (synopsis) return false
+
+      row.find('b').first().remove()
+      synopsis = cleanText(row.text())
+      return false
+    })
+
+    return synopsis || safeText($, 'dd.short-info p span') || safeText($, 'dd.short-info span')
+  }
+
+  private parseGenres($: cheerio.CheerioAPI, metadata: Record<string, string>): string[] {
+    const genres = splitCommaList(metadata.Genres ?? '')
+
+    $('dd.short-info a[href*="/category/"]').each((_, element) => {
+      const label = cleanText($(element).text())
+      if (!label || NON_GENRE_LABELS.has(label)) return
+
+      genres.push(label)
+    })
+
+    return uniqueStrings(genres)
   }
 
   private parseChapterNumber(title: string): number {
@@ -231,5 +273,9 @@ export class NineMangaParser {
 
   private sameUrl(left: string, right: string): boolean {
     return normalizeUrl(left, this.baseUrl) === normalizeUrl(right, this.baseUrl)
+  }
+
+  private withWarning(url: string): string {
+    return url ? withQueryParam(url, this.baseUrl, 'waring', '1') : ''
   }
 }

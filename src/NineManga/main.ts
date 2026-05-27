@@ -18,6 +18,7 @@ import type {
   SourceManga,
 } from '@paperback/types'
 
+import { resetCloudflareBypassState } from '../common/http/request'
 import { NineMangaClient } from './NineMangaClient'
 
 const BASE_URL = 'https://www.ninemanga.com/'
@@ -52,6 +53,7 @@ class NineMangaExtension
     }
 
     console.log(`[NineManga] Saved ${savedCookies} Cloudflare bypass cookies`)
+    if (savedCookies > 0) resetCloudflareBypassState(BASE_URL)
   }
 
   async bypassCloudflareRequest(request: Request): Promise<Request> {
