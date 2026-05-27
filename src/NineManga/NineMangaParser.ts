@@ -125,6 +125,14 @@ export class NineMangaParser {
       }))
     }
 
+    const readerImages = this.parseReaderImages($)
+    if (readerImages.length > 1) {
+      return readerImages.map((imageUrl, index) => ({
+        url: `${currentUrl}#page-${index + 1}`,
+        imageUrl,
+      }))
+    }
+
     const imageUrl = normalizeUrl($('img.manga_pic[src]').first().attr('src'), this.baseUrl)
     const normalizedCurrentUrl = this.withWarning(currentUrl)
     const pages: NineMangaChapterPage[] = []
@@ -143,8 +151,8 @@ export class NineMangaParser {
       })
     })
 
-    if (pages.length === 0 && imageUrl) {
-      pages.push({ url: normalizedCurrentUrl, imageUrl })
+    if (pages.length === 0 && (imageUrl || readerImages[0])) {
+      pages.push({ url: normalizedCurrentUrl, imageUrl: imageUrl || readerImages[0] })
     }
 
     return uniqueBy(pages, (page) => page.url)
@@ -176,7 +184,7 @@ export class NineMangaParser {
     const $ = cheerio.load(html)
     return (
       this.parseAllImageUrls(html)[0] ||
-      normalizeUrl($('img.manga_pic[src]').first().attr('src'), this.baseUrl) ||
+      this.parseReaderImages($)[0] ||
       undefined
     )
   }
@@ -324,6 +332,33 @@ export class NineMangaParser {
     }
 
     return uniqueStrings(images)
+  }
+
+  private parseReaderImages($: cheerio.CheerioAPI): string[] {
+    const images: string[] = []
+
+    $('img.manga_pic, img[src*="/comics/"], img[data-src*="/comics/"], img[data-original*="/comics/"]').each((_, element) => {
+      const image = $(element)
+      const imageUrl = this.firstImageUrl(
+        image.attr('src'),
+        image.attr('data-src'),
+        image.attr('data-original'),
+        image.attr('lazy-src')
+      )
+
+      if (imageUrl) images.push(imageUrl)
+    })
+
+    return uniqueStrings(images)
+  }
+
+  private firstImageUrl(...values: Array<string | undefined>): string {
+    for (const value of values) {
+      const normalized = normalizeUrl(value, this.baseUrl)
+      if (/\.(?:webp|jpe?g|png)(?:[?#].*)?$/i.test(normalized)) return normalized
+    }
+
+    return ''
   }
 
   private chapterIdFromExternalSource(sourceUrl: string | undefined): string {

@@ -302,18 +302,31 @@ export class NineMangaClient {
     const candidates = [url]
 
     if (base.endsWith('.html')) {
+      candidates.push(base.replace(/\.html$/, '-10-1.html'))
+      candidates.push(base.replace(/\.html$/, '-6-1.html'))
+      candidates.push(base.replace(/\.html$/, '-3-1.html'))
+      candidates.push(base.replace(/\.html$/, '-1-1.html'))
       candidates.push(this.withWarning(base.replace(/\.html$/, '-10-1.html')))
       candidates.push(this.withWarning(base.replace(/\.html$/, '-6-1.html')))
       candidates.push(this.withWarning(base.replace(/\.html$/, '-3-1.html')))
       candidates.push(this.withWarning(base.replace(/\.html$/, '-1-1.html')))
+      candidates.push(base.replace(/\.html$/, '/'))
       candidates.push(this.withWarning(base.replace(/\.html$/, '/')))
     } else if (base.endsWith('/')) {
       const withoutSlash = base.slice(0, -1)
+      candidates.push(`${withoutSlash}-10-1.html`)
+      candidates.push(`${withoutSlash}-6-1.html`)
+      candidates.push(`${withoutSlash}-3-1.html`)
+      candidates.push(`${withoutSlash}-1-1.html`)
       candidates.push(this.withWarning(`${withoutSlash}-10-1.html`))
       candidates.push(this.withWarning(`${withoutSlash}-6-1.html`))
       candidates.push(this.withWarning(`${withoutSlash}-3-1.html`))
       candidates.push(this.withWarning(`${withoutSlash}-1-1.html`))
     } else {
+      candidates.push(`${base}-10-1.html`)
+      candidates.push(`${base}-6-1.html`)
+      candidates.push(`${base}-3-1.html`)
+      candidates.push(`${base}-1-1.html`)
       candidates.push(this.withWarning(`${base}-10-1.html`))
       candidates.push(this.withWarning(`${base}-6-1.html`))
       candidates.push(this.withWarning(`${base}-3-1.html`))
@@ -331,7 +344,7 @@ export class NineMangaClient {
     if (!title || !chapterId) return ''
 
     const encodedTitle = encodeURIComponent(title.replace(/\s+Manga$/i, '').trim())
-    return this.withWarning(`${BASE_URL}chapter/${encodedTitle}/${chapterId}-10-1.html`)
+    return `${BASE_URL}chapter/${encodedTitle}/${chapterId}-10-1.html`
   }
 
   private titleFromChapterUrl(url: string): string {
