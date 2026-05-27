@@ -31,6 +31,7 @@ export interface NineMangaMangaData {
   genres: string[]
   shareUrl: string
   isAdult: boolean
+  bookId?: string
   warningUrl?: string
   chapters: Chapter[]
   additionalInfo: Record<string, string>

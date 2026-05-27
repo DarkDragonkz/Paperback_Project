@@ -22,7 +22,7 @@ import { resetCloudflareBypassState } from '../common/http/request'
 import { NineMangaClient } from './NineMangaClient'
 
 const BASE_URL = 'https://www.ninemanga.com/'
-const SOURCE_VERSION = '1.0.20'
+const SOURCE_VERSION = '1.0.21'
 const COOKIE_DOMAIN = 'ninemanga.com'
 const CLOUDFLARE_COOKIE_TTL_MS = 2 * 60 * 60 * 1000
 
@@ -34,8 +34,8 @@ class NineMangaExtension
     DiscoverSectionProviding,
     CloudflareBypassRequestProviding
 {
-  private readonly client = new NineMangaClient()
   private readonly cookieStorage = new CookieStorageInterceptor({ storage: 'stateManager' })
+  private readonly client = new NineMangaClient((cookie) => this.cookieStorage.setCookie(cookie))
   private cookieStorageRegistered = false
 
   async initialise(): Promise<void> {

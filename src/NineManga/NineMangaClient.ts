@@ -4,6 +4,7 @@ import {
   EndOfPageResults,
   type Chapter,
   type ChapterDetails,
+  type Cookie,
   type DiscoverSection,
   type DiscoverSectionItem,
   type Metadata,
@@ -69,6 +70,8 @@ const SECTIONS: NineMangaListingConfig[] = [
 export class NineMangaClient {
   private readonly parser = new NineMangaParser(BASE_URL)
 
+  constructor(private readonly setCookie?: (cookie: Cookie) => void) {}
+
   async getMangaDetails(mangaId: string): Promise<SourceManga> {
     const details = await this.getMangaData(mangaId)
     return this.parser.toSourceManga(details)
@@ -83,6 +86,8 @@ export class NineMangaClient {
   }
 
   async getChapterDetails(chapter: Chapter): Promise<ChapterDetails> {
+    this.setReaderUnlockCookie(chapter)
+
     const chapterUrl = this.withWarning(
       chapter.additionalInfo?.url ?? normalizeUrl(chapter.chapterId, BASE_URL)
     )
@@ -363,6 +368,32 @@ export class NineMangaClient {
     return mergeHeaders(await defaultBrowserHeaders(referer), {
       accept: 'text/html,application/json;q=0.9,*/*;q=0.8',
     })
+  }
+
+  private setReaderUnlockCookie(chapter: Chapter): void {
+    const bookId = chapter.additionalInfo?.bookId
+    const chapterId = this.numericChapterId(chapter.additionalInfo?.url ?? chapter.chapterId)
+    if (!this.setCookie || !bookId || !chapterId) return
+
+    this.setCookie({
+      name: `lrgarden_visit_check_${bookId}`,
+      value: chapterId,
+      domain: 'ninemanga.com',
+      path: '/',
+      expires: new Date(Date.now() + 24 * 60 * 60 * 1000),
+    })
+    this.setCookie({
+      name: 'ninemanga_book_visited',
+      value: '1',
+      domain: 'ninemanga.com',
+      path: '/',
+      expires: new Date(Date.now() + 24 * 60 * 60 * 1000),
+    })
+    console.log(`[NineManga] Set reader unlock cookie for book ${bookId}, chapter ${chapterId}`)
+  }
+
+  private numericChapterId(value: string): string {
+    return value.match(/\/(\d+)(?:[-/.?]|$)/)?.[1] ?? ''
   }
 
   private readPage(metadata: Metadata | undefined): number {

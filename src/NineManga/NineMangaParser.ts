@@ -68,6 +68,7 @@ export class NineMangaParser {
     const title = rawTitle.replace(/\s+Manga$/i, '') || rawTitle
     const metadata = this.parseMetadata($)
     const genres = this.parseGenres($, metadata)
+    const bookId = this.parseBookId(html)
     const warningUrl = normalizeUrl($('a[href*="waring=1"]').first().attr('href'), this.baseUrl) || undefined
     const synopsis = this.parseSynopsis($)
     const isAdult = Boolean(warningUrl) || this.hasAdultTags(genres)
@@ -83,8 +84,9 @@ export class NineMangaParser {
       genres,
       shareUrl,
       isAdult,
+      bookId,
       warningUrl,
-      chapters: this.parseChapters($, mangaId, title),
+      chapters: this.parseChapters($, mangaId, title, bookId),
       additionalInfo: metadata,
     }
   }
@@ -223,7 +225,12 @@ export class NineMangaParser {
     return metadata
   }
 
-  private parseChapters($: cheerio.CheerioAPI, mangaId: string, mangaTitle: string): Chapter[] {
+  private parseChapters(
+    $: cheerio.CheerioAPI,
+    mangaId: string,
+    mangaTitle: string,
+    bookId: string
+  ): Chapter[] {
     const chapters: Chapter[] = []
 
     $('ul.chapter-box li').each((index, element) => {
@@ -255,6 +262,7 @@ export class NineMangaParser {
         sortingIndex: index,
         additionalInfo: {
           url: warningChapterUrl,
+          bookId,
         },
       })
     })
@@ -298,6 +306,10 @@ export class NineMangaParser {
     const matches = [...title.matchAll(/(?:ch(?:apter)?\s*)?(\d+(?:\.\d+)?)/gi)]
     const last = matches.length > 0 ? matches[matches.length - 1]?.[1] : undefined
     return last ? Number(last) : 0
+  }
+
+  private parseBookId(html: string): string {
+    return html.match(/\bbook_id\s*=\s*["']?(\d+)/)?.[1] ?? ''
   }
 
   private hasAdultTags(genres: string[]): boolean {
