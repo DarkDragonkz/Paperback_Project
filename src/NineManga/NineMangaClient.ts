@@ -138,6 +138,12 @@ export class NineMangaClient {
     )
 
     for (const candidate of candidates) {
+      const candidateChapterId = this.numericChapterId(candidate)
+      if (candidateChapterId && failedSourceChapterIds.has(candidateChapterId)) {
+        console.log(`[NineManga] Stopping fallback loop for failed cid ${candidateChapterId}`)
+        break
+      }
+
       const page = await this.getHtml(candidate)
       pageRefs = this.parser.parseChapterPage(page.body, page.url)
       if (pageRefs.length > 0) return pageRefs
@@ -173,6 +179,7 @@ export class NineMangaClient {
 
     if (attemptedSourceUrls.has(sourceKey)) {
       console.log(`[NineManga] Skipping already attempted source selector: ${sourceSelectionUrl}`)
+      if (externalChapterId) failedSourceChapterIds.add(externalChapterId)
       return []
     }
 
