@@ -98,10 +98,19 @@ function cloudflareBypassStateKey(url: string): string {
 }
 
 function hostKey(url: string): string {
-  return new URL(url).hostname.toLowerCase()
+  return originParts(url).host.toLowerCase()
 }
 
 function originUrl(url: string): string {
-  const parsedUrl = new URL(url)
-  return `${parsedUrl.protocol}//${parsedUrl.hostname}/`
+  const { protocol, host } = originParts(url)
+  return protocol && host ? `${protocol}//${host}/` : url
+}
+
+function originParts(url: string): { protocol: string; host: string } {
+  const match = url.match(/^([a-z][a-z0-9+.-]*:)\/\/([^/?#]+)/i)
+
+  return {
+    protocol: match?.[1] ?? '',
+    host: match?.[2] ?? url,
+  }
 }
