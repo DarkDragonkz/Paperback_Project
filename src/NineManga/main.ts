@@ -22,6 +22,7 @@ import { resetCloudflareBypassState } from '../common/http/request'
 import { NineMangaClient } from './NineMangaClient'
 
 const BASE_URL = 'https://www.ninemanga.com/'
+const SOURCE_VERSION = '1.0.12'
 const COOKIE_DOMAIN = 'ninemanga.com'
 const CLOUDFLARE_COOKIE_TTL_MS = 2 * 60 * 60 * 1000
 
@@ -40,6 +41,7 @@ class NineMangaExtension
   async initialise(): Promise<void> {
     if (this.cookieStorageRegistered) return
 
+    console.log(`[NineManga] Initialising source ${SOURCE_VERSION}`)
     this.cookieStorage.registerInterceptor()
     this.cookieStorageRegistered = true
   }
