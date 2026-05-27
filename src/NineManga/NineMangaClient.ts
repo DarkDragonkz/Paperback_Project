@@ -118,11 +118,19 @@ export class NineMangaClient {
     chapter: Chapter,
     chapterUrl: string
   ): Promise<NineMangaChapterPage[]> {
+    const attemptedSourceUrls = new Set<string>()
+    const failedSourceChapterIds = new Set<string>()
     const firstPage = await this.getHtml(chapterUrl)
     let pageRefs = this.parser.parseChapterPage(firstPage.body, firstPage.url)
     if (pageRefs.length > 0) return pageRefs
 
-    pageRefs = await this.resolveSourceSelection(chapter, firstPage.body, firstPage.url)
+    pageRefs = await this.resolveSourceSelection(
+      chapter,
+      firstPage.body,
+      firstPage.url,
+      attemptedSourceUrls,
+      failedSourceChapterIds
+    )
     if (pageRefs.length > 0) return pageRefs
 
     const candidates = this.chapterReaderCandidates(chapterUrl).filter(
@@ -134,7 +142,13 @@ export class NineMangaClient {
       pageRefs = this.parser.parseChapterPage(page.body, page.url)
       if (pageRefs.length > 0) return pageRefs
 
-      pageRefs = await this.resolveSourceSelection(chapter, page.body, page.url)
+      pageRefs = await this.resolveSourceSelection(
+        chapter,
+        page.body,
+        page.url,
+        attemptedSourceUrls,
+        failedSourceChapterIds
+      )
       if (pageRefs.length > 0) return pageRefs
 
       console.log(`[NineManga] No reader pages found at ${candidate}; trying fallback`)
@@ -146,13 +160,28 @@ export class NineMangaClient {
   private async resolveSourceSelection(
     chapter: Chapter,
     html: string,
-    referer: string
+    referer: string,
+    attemptedSourceUrls: Set<string>,
+    failedSourceChapterIds: Set<string>
   ): Promise<NineMangaChapterPage[]> {
     const sourceSelectionUrl = this.parser.parseSourceSelectionUrl(html)
     if (!sourceSelectionUrl) return []
 
     const externalChapterId =
       this.parser.parseExternalSourceChapterId(html) || this.numericChapterId(sourceSelectionUrl)
+    const sourceKey = this.sourceFlowKey(sourceSelectionUrl)
+
+    if (attemptedSourceUrls.has(sourceKey)) {
+      console.log(`[NineManga] Skipping already attempted source selector: ${sourceSelectionUrl}`)
+      return []
+    }
+
+    if (externalChapterId && failedSourceChapterIds.has(externalChapterId)) {
+      console.log(`[NineManga] Skipping source selector for failed cid ${externalChapterId}`)
+      return []
+    }
+
+    attemptedSourceUrls.add(sourceKey)
     if (externalChapterId) this.setReaderUnlockCookie(chapter, externalChapterId)
 
     console.log(`[NineManga] Following chapter source selector: ${sourceSelectionUrl}`)
@@ -169,6 +198,7 @@ export class NineMangaClient {
     }
 
     console.log(`[NineManga] Source selector did not produce reader pages: ${sourceSelectionUrl}`)
+    if (externalChapterId) failedSourceChapterIds.add(externalChapterId)
     return []
   }
 
@@ -353,7 +383,11 @@ export class NineMangaClient {
 
   private readerBaseUrl(url: string): string {
     const base = url.split('?')[0] ?? url
-    return base.replace(/-(?:10|6|3|1)-1\.html$/i, '.html')
+    return base.replace(/-\d+-\d+\.html$/i, '.html')
+  }
+
+  private sourceFlowKey(url: string): string {
+    return url.replace(/&amp;/g, '&').replace(/#.*$/, '')
   }
 
   private async getHeaders(referer = BASE_URL) {
