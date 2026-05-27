@@ -6,6 +6,7 @@ import {
   type TagSection,
 } from '@paperback/types'
 import * as cheerio from 'cheerio'
+import type { AnyNode } from 'domhandler'
 
 import { cleanText, safeAttr, safeText, splitCommaList } from '../common/parsing/html'
 import { uniqueBy, uniqueStrings } from '../common/utils/array'
@@ -119,7 +120,10 @@ export class NineMangaParser {
 
   parseChapterPage(html: string, currentUrl: string): NineMangaChapterPage[] {
     const $ = cheerio.load(html)
-    const allImageUrls = this.parseAllImageUrls(html)
+    const allImageUrls = uniqueStrings([
+      ...this.parseAllImageUrls(html),
+      ...this.parseInlineReaderImageUrls(html),
+    ])
     if (allImageUrls.length > 0) {
       return allImageUrls.map((imageUrl, index) => ({
         url: `${currentUrl}#page-${index + 1}`,
@@ -162,17 +166,33 @@ export class NineMangaParser {
 
   parseSourceSelectionUrl(html: string): string | undefined {
     const $ = cheerio.load(html)
-    const sourceUrl =
-      $('a.vision-button[href*="/go/jump/"][href*="cid="]').first().attr('href') ||
-      $('a.vision-button[href*="/go/"]').first().attr('href') ||
-      $('a[href*="/go/jump/"][href*="cid="]').first().attr('href')
+    const href =
+      $('a.vision-button[href*="/go/jump/"]').first().attr('href') ||
+      $('a.vision-button[href*="/go/ennm/"]').first().attr('href') ||
+      $('a[href*="type=enninemanga"][href*="cid="]').first().attr('href') ||
+      $('a[href*="/go/ennm/"]').first().attr('href') ||
+      $('a[href*="/go/jump/"]').first().attr('href')
 
-    return normalizeUrl(sourceUrl, this.baseUrl) || undefined
+    const cleaned = href?.replace(/&amp;/g, '&').trim()
+    const normalizedUrl = normalizeUrl(cleaned, this.baseUrl)
+    if (!normalizedUrl) return undefined
+
+    const allowed =
+      normalizedUrl.startsWith(this.baseUrl) ||
+      normalizedUrl.includes('/go/ennm/') ||
+      normalizedUrl.includes('/go/jump/') ||
+      normalizedUrl.includes('type=enninemanga')
+
+    return allowed ? normalizedUrl : undefined
   }
 
   parseExternalSourceChapterId(html: string): string | undefined {
     const $ = cheerio.load(html)
     const sourceUrl =
+      $('a.vision-button[href*="/go/jump/"]').first().attr('href') ||
+      $('a.vision-button[href*="/go/ennm/"]').first().attr('href') ||
+      $('a[href*="type=enninemanga"][href*="cid="]').first().attr('href') ||
+      $('a[href*="/go/ennm/"]').first().attr('href') ||
       $('a.vision-button[href*="/go/"]').first().attr('href') ||
       $('a[href*="/go/"][href*="cid="]').first().attr('href')
 
@@ -346,28 +366,79 @@ export class NineMangaParser {
   private parseReaderImages($: cheerio.CheerioAPI): string[] {
     const images: string[] = []
 
-    $('img.manga_pic, img[src*="/comics/"], img[data-src*="/comics/"], img[data-original*="/comics/"]').each((_, element) => {
+    $('img.manga_pic').each((_, element) => {
       const image = $(element)
-      const imageUrl = this.firstImageUrl(
-        image.attr('src'),
-        image.attr('data-src'),
-        image.attr('data-original'),
-        image.attr('lazy-src')
-      )
+      images.push(...this.imageUrlsFromAttributes(image, false))
+    })
 
-      if (imageUrl) images.push(imageUrl)
+    $('img').each((_, element) => {
+      const image = $(element)
+      images.push(...this.imageUrlsFromAttributes(image, true))
     })
 
     return uniqueStrings(images)
   }
 
-  private firstImageUrl(...values: Array<string | undefined>): string {
-    for (const value of values) {
-      const normalized = normalizeUrl(value, this.baseUrl)
-      if (/\.(?:webp|jpe?g|png)(?:[?#].*)?$/i.test(normalized)) return normalized
+  private imageUrlsFromAttributes(image: cheerio.Cheerio<AnyNode>, requireReaderPath: boolean): string[] {
+    const images: string[] = []
+    const attributes = [
+      'src',
+      'data-src',
+      'data-original',
+      'lazy-src',
+      'data-lazy-src',
+      'srcset',
+      'data-srcset',
+      'data-lazy-srcset',
+    ]
+
+    for (const attribute of attributes) {
+      for (const imageUrl of this.imageUrlsFromValue(image.attr(attribute))) {
+        if (!requireReaderPath || this.isReaderImageUrl(imageUrl)) images.push(imageUrl)
+      }
     }
 
-    return ''
+    return images
+  }
+
+  private imageUrlsFromValue(value: string | undefined): string[] {
+    const images: string[] = []
+    if (!value) return images
+
+    for (const match of value.matchAll(/(?:https?:)?\/\/[^\s"',<>]+\.(?:webp|jpe?g|png)(?:\?[^"',<>\s]*)?/gi)) {
+      const imageUrl = normalizeUrl(match[0], this.baseUrl)
+      if (this.isImageUrl(imageUrl)) images.push(imageUrl)
+    }
+
+    if (images.length > 0) return images
+
+    const firstPart = value.split(/\s+/)[0]
+    const imageUrl = normalizeUrl(firstPart, this.baseUrl)
+    return this.isImageUrl(imageUrl) ? [imageUrl] : []
+  }
+
+  private isImageUrl(url: string): boolean {
+    return /\.(?:webp|jpe?g|png)(?:[?#].*)?$/i.test(url)
+  }
+
+  private isReaderImageUrl(url: string): boolean {
+    const normalized = url.toLowerCase()
+    return (
+      normalized.includes('/comics/') ||
+      normalized.includes('.movietop.cc/') ||
+      normalized.includes('nineanime.com/files/')
+    )
+  }
+
+  private parseInlineReaderImageUrls(html: string): string[] {
+    const images: string[] = []
+
+    for (const match of html.matchAll(/(?:https?:)?\/\/[^\s"',<>]+\.(?:webp|jpe?g|png)(?:\?[^"',<>\s]*)?/gi)) {
+      const imageUrl = normalizeUrl(match[0], this.baseUrl)
+      if (this.isImageUrl(imageUrl) && this.isReaderImageUrl(imageUrl)) images.push(imageUrl)
+    }
+
+    return uniqueStrings(images)
   }
 
   private chapterIdFromExternalSource(sourceUrl: string | undefined): string {
@@ -376,7 +447,8 @@ export class NineMangaParser {
     const source = sourceUrl.replace(/&amp;/g, '&')
     const queryId = source.match(/[?&]cid=([^&#/]+)/)?.[1]
     const pathId = source.match(/\/go\/[^/?#]+\/(\d+)(?:[/?#]|$)/)?.[1]
-    return queryId || pathId || ''
+    const suffixId = source.match(/\/(\d+)\.html(?:[?#]|$)/)?.[1]
+    return queryId || pathId || suffixId || ''
   }
 
 }

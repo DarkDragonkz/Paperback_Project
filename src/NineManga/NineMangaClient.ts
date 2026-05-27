@@ -92,58 +92,7 @@ export class NineMangaClient {
     const chapterUrl = this.withWarning(
       preparedChapter.additionalInfo?.url ?? normalizeUrl(preparedChapter.chapterId, BASE_URL)
     )
-    const candidates = this.chapterReaderCandidates(chapterUrl)
-    let pageRefs: NineMangaChapterPage[] = []
-    let handledSourceSelection = false
-
-    for (const candidate of candidates) {
-      const firstPage = await this.getHtml(candidate)
-      pageRefs = this.parser.parseChapterPage(firstPage.body, firstPage.url)
-
-      if (pageRefs.length > 0) break
-
-      const sourceSelectionUrl = this.parser.parseSourceSelectionUrl(firstPage.body)
-      if (sourceSelectionUrl) {
-        console.log(`[NineManga] Found chapter source selector at ${candidate}`)
-        const externalChapterId = this.parser.parseExternalSourceChapterId(firstPage.body)
-
-        if (externalChapterId && !handledSourceSelection) {
-          handledSourceSelection = true
-          this.setReaderUnlockCookie(preparedChapter, externalChapterId)
-
-          const canonicalUrl = this.canonicalChapterUrl(preparedChapter, externalChapterId)
-          const retryCandidates = uniqueStrings([
-            canonicalUrl,
-            ...this.chapterReaderCandidates(canonicalUrl || candidate),
-          ].filter(Boolean))
-
-          for (const retryCandidate of retryCandidates) {
-            console.log(`[NineManga] Retrying reader after source selector: ${retryCandidate}`)
-            const retryPage = await this.getHtml(retryCandidate, candidate)
-            pageRefs = this.parser.parseChapterPage(retryPage.body, retryPage.url)
-
-            if (pageRefs.length > 0) break
-          }
-
-          if (pageRefs.length > 0) break
-        }
-      }
-
-      const externalChapterId = this.parser.parseExternalSourceChapterId(firstPage.body)
-      if (externalChapterId) {
-        this.setReaderUnlockCookie(preparedChapter, externalChapterId)
-        const canonicalUrl = this.canonicalChapterUrl(preparedChapter, externalChapterId)
-        if (canonicalUrl && !candidates.includes(canonicalUrl)) {
-          console.log(`[NineManga] Rebuilding NineManga chapter URL from external source id ${externalChapterId}`)
-          const canonicalPage = await this.getHtml(canonicalUrl, candidate)
-          pageRefs = this.parser.parseChapterPage(canonicalPage.body, canonicalPage.url)
-
-          if (pageRefs.length > 0) break
-        }
-      }
-
-      console.log(`[NineManga] No reader pages found at ${candidate}; trying fallback`)
-    }
+    const pageRefs = await this.resolveChapterPageRefs(preparedChapter, chapterUrl)
 
     const pages: string[] = []
 
@@ -163,6 +112,64 @@ export class NineMangaClient {
       mangaId: preparedChapter.sourceManga.mangaId,
       pages: uniqueStrings(pages),
     }
+  }
+
+  private async resolveChapterPageRefs(
+    chapter: Chapter,
+    chapterUrl: string
+  ): Promise<NineMangaChapterPage[]> {
+    const firstPage = await this.getHtml(chapterUrl)
+    let pageRefs = this.parser.parseChapterPage(firstPage.body, firstPage.url)
+    if (pageRefs.length > 0) return pageRefs
+
+    pageRefs = await this.resolveSourceSelection(chapter, firstPage.body, firstPage.url)
+    if (pageRefs.length > 0) return pageRefs
+
+    const candidates = this.chapterReaderCandidates(chapterUrl).filter(
+      (candidate) => candidate !== chapterUrl
+    )
+
+    for (const candidate of candidates) {
+      const page = await this.getHtml(candidate)
+      pageRefs = this.parser.parseChapterPage(page.body, page.url)
+      if (pageRefs.length > 0) return pageRefs
+
+      pageRefs = await this.resolveSourceSelection(chapter, page.body, page.url)
+      if (pageRefs.length > 0) return pageRefs
+
+      console.log(`[NineManga] No reader pages found at ${candidate}; trying fallback`)
+    }
+
+    return []
+  }
+
+  private async resolveSourceSelection(
+    chapter: Chapter,
+    html: string,
+    referer: string
+  ): Promise<NineMangaChapterPage[]> {
+    const sourceSelectionUrl = this.parser.parseSourceSelectionUrl(html)
+    if (!sourceSelectionUrl) return []
+
+    const externalChapterId =
+      this.parser.parseExternalSourceChapterId(html) || this.numericChapterId(sourceSelectionUrl)
+    if (externalChapterId) this.setReaderUnlockCookie(chapter, externalChapterId)
+
+    console.log(`[NineManga] Following chapter source selector: ${sourceSelectionUrl}`)
+    const sourcePage = await this.getHtml(sourceSelectionUrl, referer)
+    let pageRefs = this.parser.parseChapterPage(sourcePage.body, sourcePage.url)
+    if (pageRefs.length > 0) return pageRefs
+
+    const nestedSourceUrl = this.parser.parseSourceSelectionUrl(sourcePage.body)
+    if (nestedSourceUrl && nestedSourceUrl !== sourceSelectionUrl) {
+      console.log(`[NineManga] Following nested chapter source selector: ${nestedSourceUrl}`)
+      const nestedPage = await this.getHtml(nestedSourceUrl, sourcePage.url)
+      pageRefs = this.parser.parseChapterPage(nestedPage.body, nestedPage.url)
+      if (pageRefs.length > 0) return pageRefs
+    }
+
+    console.log(`[NineManga] Source selector did not produce reader pages: ${sourceSelectionUrl}`)
+    return []
   }
 
   async getDiscoverSections(): Promise<DiscoverSection[]> {
@@ -324,65 +331,29 @@ export class NineMangaClient {
   }
 
   private chapterReaderCandidates(url: string): string[] {
-    const base = url.split('?')[0] ?? url
+    const base = this.readerBaseUrl(url)
+    const stem = base.endsWith('.html')
+      ? base.replace(/\.html$/i, '')
+      : base.replace(/\/$/i, '')
     const candidates = [url]
 
-    if (base.endsWith('.html')) {
-      candidates.push(base.replace(/\.html$/, '-10-1.html'))
-      candidates.push(base.replace(/\.html$/, '-6-1.html'))
-      candidates.push(base.replace(/\.html$/, '-3-1.html'))
-      candidates.push(base.replace(/\.html$/, '-1-1.html'))
-      candidates.push(this.withWarning(base.replace(/\.html$/, '-10-1.html')))
-      candidates.push(this.withWarning(base.replace(/\.html$/, '-6-1.html')))
-      candidates.push(this.withWarning(base.replace(/\.html$/, '-3-1.html')))
-      candidates.push(this.withWarning(base.replace(/\.html$/, '-1-1.html')))
-      candidates.push(base.replace(/\.html$/, '/'))
-      candidates.push(this.withWarning(base.replace(/\.html$/, '/')))
-    } else if (base.endsWith('/')) {
-      const withoutSlash = base.slice(0, -1)
-      candidates.push(`${withoutSlash}-10-1.html`)
-      candidates.push(`${withoutSlash}-6-1.html`)
-      candidates.push(`${withoutSlash}-3-1.html`)
-      candidates.push(`${withoutSlash}-1-1.html`)
-      candidates.push(this.withWarning(`${withoutSlash}-10-1.html`))
-      candidates.push(this.withWarning(`${withoutSlash}-6-1.html`))
-      candidates.push(this.withWarning(`${withoutSlash}-3-1.html`))
-      candidates.push(this.withWarning(`${withoutSlash}-1-1.html`))
-    } else {
-      candidates.push(`${base}-10-1.html`)
-      candidates.push(`${base}-6-1.html`)
-      candidates.push(`${base}-3-1.html`)
-      candidates.push(`${base}-1-1.html`)
-      candidates.push(this.withWarning(`${base}-10-1.html`))
-      candidates.push(this.withWarning(`${base}-6-1.html`))
-      candidates.push(this.withWarning(`${base}-3-1.html`))
-      candidates.push(this.withWarning(`${base}-1-1.html`))
-    }
+    candidates.push(`${stem}-10-1.html`)
+    candidates.push(`${stem}-6-1.html`)
+    candidates.push(`${stem}-3-1.html`)
+    candidates.push(`${stem}-1-1.html`)
+    candidates.push(this.withWarning(`${stem}-10-1.html`))
+    candidates.push(this.withWarning(`${stem}-6-1.html`))
+    candidates.push(this.withWarning(`${stem}-3-1.html`))
+    candidates.push(this.withWarning(`${stem}-1-1.html`))
+    candidates.push(`${stem}/`)
+    candidates.push(this.withWarning(`${stem}/`))
 
     return uniqueStrings(candidates.filter(Boolean))
   }
 
-  private canonicalChapterUrl(chapter: Chapter, chapterId: string): string {
-    const title =
-      chapter.sourceManga.mangaInfo.primaryTitle ||
-      this.titleFromChapterUrl(chapter.additionalInfo?.url ?? chapter.chapterId)
-
-    if (!title || !chapterId) return ''
-
-    const encodedTitle = encodeURIComponent(title.replace(/\s+Manga$/i, '').trim())
-    return `${BASE_URL}chapter/${encodedTitle}/${chapterId}-10-1.html`
-  }
-
-  private titleFromChapterUrl(url: string): string {
-    return this.safeDecode(url.match(/\/chapter\/([^/]+)\//)?.[1]?.replace(/\+/g, ' ') ?? '')
-  }
-
-  private safeDecode(value: string): string {
-    try {
-      return decodeURIComponent(value)
-    } catch {
-      return value
-    }
+  private readerBaseUrl(url: string): string {
+    const base = url.split('?')[0] ?? url
+    return base.replace(/-(?:10|6|3|1)-1\.html$/i, '.html')
   }
 
   private async getHeaders(referer = BASE_URL) {
