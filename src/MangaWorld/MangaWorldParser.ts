@@ -249,6 +249,11 @@ export class MangaWorldParser {
     })
 
     return uniqueBy(chapters, (chapter) => chapter.chapterId)
+      .reverse()
+      .map((chapter, index) => ({
+        ...chapter,
+        sortingIndex: index,
+      }))
   }
 
   private parseMetadata($: CheerioAPI): Record<string, string> {
