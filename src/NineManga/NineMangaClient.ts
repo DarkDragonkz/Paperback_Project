@@ -179,14 +179,18 @@ export class NineMangaClient {
       pageRefs = this.parser.parseChapterPage(page.body, page.url)
       if (pageRefs.length > 0) return pageRefs
 
-      pageRefs = await this.resolveSourceSelection(
-        chapter,
-        page.body,
-        page.url,
-        attemptedSourceUrls,
-        failedSourceChapterIds
-      )
-      if (pageRefs.length > 0) return pageRefs
+      if (!this.isCanonicalNineMangaReaderUrl(page.url)) {
+        pageRefs = await this.resolveSourceSelection(
+          chapter,
+          page.body,
+          page.url,
+          attemptedSourceUrls,
+          failedSourceChapterIds
+        )
+        if (pageRefs.length > 0) return pageRefs
+      } else {
+        console.log(`[NineManga] Skipping external source selector on canonical fallback reader page: ${page.url}`)
+      }
 
       console.log(`[NineManga] No reader pages found at ${candidate}; trying fallback`)
     }
