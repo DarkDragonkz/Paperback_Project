@@ -1,6 +1,12 @@
 import type { Chapter } from '@paperback/types'
 
-export type ReadAllComicsSectionId = 'latest'
+export type ReadAllComicsSectionId = 'latest' | 'catalog'
+
+export interface ReadAllComicsListingConfig {
+  id: ReadAllComicsSectionId
+  title: string
+  includeChapterUpdates: boolean
+}
 
 export interface ReadAllComicsListingItem {
   mangaId: string
@@ -27,4 +33,3 @@ export interface ReadAllComicsMangaData {
   chapters: Chapter[]
   additionalInfo: Record<string, string>
 }
-

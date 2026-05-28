@@ -26,10 +26,11 @@ const BASE_URL = 'https://rcostation.xyz/'
 const SEARCH_URL = 'https://rcostation.xyz/Search/Comic'
 const MOBILE_USER_AGENT =
   'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1'
-const HTML_CACHE_TTL_MS = 2 * 60 * 1000
-const COMIC_DATA_CACHE_TTL_MS = 5 * 60 * 1000
+const HTML_CACHE_TTL_MS = 5 * 60 * 1000
+const COMIC_DATA_CACHE_TTL_MS = 10 * 60 * 1000
 const MAX_CACHE_ENTRIES = 30
-const MAX_COVER_ENRICHMENT_ITEMS = 24
+const MAX_COVER_ENRICHMENT_ITEMS = 16
+const COVER_ENRICHMENT_BATCH_SIZE = 4
 
 interface CacheEntry<T> {
   expiresAt: number
@@ -94,9 +95,10 @@ export class RCOStationClient {
     return SECTIONS.map((section) => ({
       id: section.id,
       title: section.title,
+      subtitle: this.sectionSubtitle(section.id),
       type: section.includeChapterUpdates
         ? DiscoverSectionType.chapterUpdates
-        : DiscoverSectionType.simpleCarousel,
+        : DiscoverSectionType.prominentCarousel,
     }))
   }
 
@@ -146,29 +148,37 @@ export class RCOStationClient {
     items: RCOStationListingItem[],
     enrichMissingImages: boolean
   ): Promise<RCOStationListingItem[]> {
-    const result: RCOStationListingItem[] = []
-    let enrichedItems = 0
+    const byMangaId = new Map<string, RCOStationListingItem>()
+    const pendingEnrichment: RCOStationListingItem[] = []
 
     for (const item of items) {
       if (this.isUsableImageUrl(item.imageUrl)) {
-        result.push(item)
+        byMangaId.set(item.mangaId, item)
         continue
       }
 
-      if (!enrichMissingImages || enrichedItems >= MAX_COVER_ENRICHMENT_ITEMS) continue
-
-      const imageUrl = await this.coverForManga(item.mangaId)
-      enrichedItems += 1
-
-      if (!this.isUsableImageUrl(imageUrl)) continue
-
-      result.push({
-        ...item,
-        imageUrl,
-      })
+      if (enrichMissingImages && pendingEnrichment.length < MAX_COVER_ENRICHMENT_ITEMS) {
+        pendingEnrichment.push(item)
+      }
     }
 
-    return result
+    for (let index = 0; index < pendingEnrichment.length; index += COVER_ENRICHMENT_BATCH_SIZE) {
+      const batch = pendingEnrichment.slice(index, index + COVER_ENRICHMENT_BATCH_SIZE)
+      const enriched = await Promise.all(
+        batch.map(async (item) => {
+          const imageUrl = await this.coverForManga(item.mangaId)
+          return this.isUsableImageUrl(imageUrl) ? { ...item, imageUrl } : undefined
+        })
+      )
+
+      for (const item of enriched) {
+        if (item) byMangaId.set(item.mangaId, item)
+      }
+    }
+
+    return items
+      .map((item) => byMangaId.get(item.mangaId))
+      .filter((item): item is RCOStationListingItem => Boolean(item))
   }
 
   private async coverForManga(mangaId: string): Promise<string> {
@@ -240,6 +250,19 @@ export class RCOStationClient {
       title: item.title,
       subtitle: item.subtitle,
       contentRating: ContentRating.MATURE,
+    }
+  }
+
+  private sectionSubtitle(sectionId: string): string {
+    switch (sectionId) {
+      case 'latest':
+        return 'Fresh issue releases'
+      case 'new':
+        return 'Newly added series'
+      case 'popular':
+        return 'Most-read comics'
+      default:
+        return ''
     }
   }
 

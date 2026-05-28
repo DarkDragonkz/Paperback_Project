@@ -28,8 +28,8 @@ import { NineMangaParser } from './NineMangaParser'
 const BASE_URL = 'https://www.ninemanga.com/'
 const MOBILE_USER_AGENT =
   'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1'
-const HTML_CACHE_TTL_MS = 2 * 60 * 1000
-const MANGA_DATA_CACHE_TTL_MS = 5 * 60 * 1000
+const HTML_CACHE_TTL_MS = 5 * 60 * 1000
+const MANGA_DATA_CACHE_TTL_MS = 10 * 60 * 1000
 const MAX_CACHE_ENTRIES = 30
 const MAX_READER_REDIRECTS = 6
 
@@ -102,9 +102,10 @@ export class NineMangaClient {
     return SECTIONS.map((section) => ({
       id: section.id,
       title: section.title,
+      subtitle: section.id === 'latest' ? 'Latest chapter updates' : 'Browse the main catalog',
       type: section.includeChapterUpdates
         ? DiscoverSectionType.chapterUpdates
-        : DiscoverSectionType.simpleCarousel,
+        : DiscoverSectionType.prominentCarousel,
     }))
   }
 

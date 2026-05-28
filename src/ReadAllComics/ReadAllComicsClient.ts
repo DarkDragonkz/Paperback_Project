@@ -17,16 +17,33 @@ import type { PageMetadata } from '../common/models/Pagination'
 import { uniqueBy, uniqueStrings } from '../common/utils/array'
 import { normalizeUrl, pathIdFromUrl } from '../common/utils/url'
 import { getText, postForm, type TextResponse } from './ReadAllComicsHttp'
-import type { ReadAllComicsListingItem, ReadAllComicsMangaData } from './ReadAllComicsModels'
+import type {
+  ReadAllComicsListingConfig,
+  ReadAllComicsListingItem,
+  ReadAllComicsMangaData,
+} from './ReadAllComicsModels'
 import { ReadAllComicsParser } from './ReadAllComicsParser'
 
 const BASE_URL = 'https://readallcomics.com/'
 const AJAX_URL = 'https://readallcomics.com/wp-admin/admin-ajax.php'
 const MOBILE_USER_AGENT =
   'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1'
-const HTML_CACHE_TTL_MS = 2 * 60 * 1000
-const MANGA_DATA_CACHE_TTL_MS = 5 * 60 * 1000
+const HTML_CACHE_TTL_MS = 5 * 60 * 1000
+const MANGA_DATA_CACHE_TTL_MS = 10 * 60 * 1000
 const MAX_CACHE_ENTRIES = 30
+
+const SECTIONS: ReadAllComicsListingConfig[] = [
+  {
+    id: 'latest',
+    title: 'Latest Updates',
+    includeChapterUpdates: true,
+  },
+  {
+    id: 'catalog',
+    title: 'Recently Updated Series',
+    includeChapterUpdates: false,
+  },
+]
 
 interface CacheEntry<T> {
   expiresAt: number
@@ -84,27 +101,29 @@ export class ReadAllComicsClient {
   }
 
   async getDiscoverSections(): Promise<DiscoverSection[]> {
-    return [
-      {
-        id: 'latest',
-        title: 'Latest Updates',
-        type: DiscoverSectionType.chapterUpdates,
-      },
-    ]
+    return SECTIONS.map((section) => ({
+      id: section.id,
+      title: section.title,
+      subtitle: section.id === 'latest' ? 'Newest comic issues' : 'Series with fresh activity',
+      type: section.includeChapterUpdates
+        ? DiscoverSectionType.chapterUpdates
+        : DiscoverSectionType.prominentCarousel,
+    }))
   }
 
   async getDiscoverSectionItems(
     section: DiscoverSection,
     metadata: Metadata | undefined
   ): Promise<PagedResults<DiscoverSectionItem>> {
-    if (section.id !== 'latest') return EndOfPageResults
+    const config = SECTIONS.find((candidate) => candidate.id === section.id)
+    if (!config) return EndOfPageResults
 
     const page = this.readPage(metadata)
     const items = await this.getLatestUpdates(page)
     if (items.length === 0) return EndOfPageResults
 
     return {
-      items: items.map((item) => this.toDiscoverItem(item)),
+      items: items.map((item) => this.toDiscoverItem(config, item)),
       metadata: { page: page + 1 } satisfies PageMetadata,
     }
   }
@@ -181,8 +200,11 @@ export class ReadAllComicsClient {
     }
   }
 
-  private toDiscoverItem(item: ReadAllComicsListingItem): DiscoverSectionItem {
-    if (item.latestChapterId) {
+  private toDiscoverItem(
+    config: ReadAllComicsListingConfig,
+    item: ReadAllComicsListingItem
+  ): DiscoverSectionItem {
+    if (config.includeChapterUpdates && item.latestChapterId) {
       return {
         type: 'chapterUpdatesCarouselItem',
         mangaId: item.mangaId,

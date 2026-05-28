@@ -26,8 +26,8 @@ import { MangaWorldParser } from './MangaWorldParser'
 const BASE_URL = 'https://www.mangaworld.mx/'
 const MOBILE_USER_AGENT =
   'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1'
-const HTML_CACHE_TTL_MS = 2 * 60 * 1000
-const MANGA_DATA_CACHE_TTL_MS = 5 * 60 * 1000
+const HTML_CACHE_TTL_MS = 5 * 60 * 1000
+const MANGA_DATA_CACHE_TTL_MS = 10 * 60 * 1000
 const MAX_CACHE_ENTRIES = 30
 
 interface CacheEntry<T> {
@@ -90,9 +90,10 @@ export class MangaWorldClient {
     return SECTIONS.map((section) => ({
       id: section.id,
       title: section.title,
+      subtitle: section.id === 'latest' ? 'Capitoli appena pubblicati' : 'Serie piu lette sul sito',
       type: section.includeChapterUpdates
         ? DiscoverSectionType.chapterUpdates
-        : DiscoverSectionType.simpleCarousel,
+        : DiscoverSectionType.prominentCarousel,
     }))
   }
 
@@ -170,7 +171,7 @@ export class MangaWorldClient {
         chapterId: item.latestChapterId,
         imageUrl: item.imageUrl,
         title: item.title,
-        subtitle: item.latestChapterTitle || item.subtitle,
+        subtitle: [item.latestChapterTitle, item.subtitle].filter(Boolean).join(' - '),
         contentRating,
       }
     }
