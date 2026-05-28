@@ -10,7 +10,7 @@ import type { AnyNode } from 'domhandler'
 
 import { cleanText, safeAttr, safeText, splitCommaList } from '../common/parsing/html'
 import { uniqueBy, uniqueStrings } from '../common/utils/array'
-import { normalizeUrl, pathIdFromUrl, withQueryParam } from '../common/utils/url'
+import { normalizeUrl, pathIdFromUrl } from '../common/utils/url'
 import type {
   NineMangaChapterPage,
   NineMangaListingItem,
@@ -140,12 +140,12 @@ export class NineMangaParser {
     }
 
     const imageUrl = normalizeUrl($('img.manga_pic[src]').first().attr('src'), this.baseUrl)
-    const normalizedCurrentUrl = this.withWarning(currentUrl)
+    const normalizedCurrentUrl = normalizeUrl(currentUrl, this.baseUrl)
     const pages: NineMangaChapterPage[] = []
 
     $('select.sl-page option[value]').each((_, option) => {
       const pageOption = $(option)
-      const pageUrl = this.withWarning(normalizeUrl(pageOption.attr('value'), this.baseUrl))
+      const pageUrl = normalizeUrl(pageOption.attr('value'), this.baseUrl)
       if (!pageUrl) return
 
       pages.push({
@@ -265,7 +265,6 @@ export class NineMangaParser {
       const longAnchor = item.find('div.chapter-name.long a[href]').first()
       const shortTitle = cleanText(item.find('div.chapter-name.short a').first().text()).replace(/\s*new$/i, '')
       const chapterUrl = normalizeUrl(longAnchor.attr('href'), this.baseUrl)
-      const warningChapterUrl = this.withWarning(chapterUrl)
       const longTitle = cleanText(longAnchor.text()).replace(/\s*new$/i, '')
       const title = longTitle || shortTitle
 
@@ -288,7 +287,7 @@ export class NineMangaParser {
         title,
         sortingIndex: index,
         additionalInfo: {
-          url: warningChapterUrl,
+          url: chapterUrl,
           bookId,
         },
       })
@@ -354,10 +353,6 @@ export class NineMangaParser {
 
   private sameUrl(left: string, right: string): boolean {
     return normalizeUrl(left, this.baseUrl) === normalizeUrl(right, this.baseUrl)
-  }
-
-  private withWarning(url: string): string {
-    return url ? withQueryParam(url, this.baseUrl, 'waring', '1') : ''
   }
 
   private parseAllImageUrls(html: string): string[] {

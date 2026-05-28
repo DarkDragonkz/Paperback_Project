@@ -89,9 +89,7 @@ export class NineMangaClient {
     const preparedChapter = await this.prepareReaderChapter(chapter)
     this.setReaderUnlockCookie(preparedChapter)
 
-    const chapterUrl = this.withWarning(
-      preparedChapter.additionalInfo?.url ?? normalizeUrl(preparedChapter.chapterId, BASE_URL)
-    )
+    const chapterUrl = preparedChapter.additionalInfo?.url ?? normalizeUrl(preparedChapter.chapterId, BASE_URL)
     const pageRefs = await this.resolveChapterPageRefs(preparedChapter, chapterUrl)
 
     const pages: string[] = []
@@ -102,7 +100,7 @@ export class NineMangaClient {
         continue
       }
 
-      const pageHtml = await this.getHtml(this.withWarning(pageRef.url))
+      const pageHtml = await this.getHtml(pageRef.url)
       const imageUrl = this.parser.parseImage(pageHtml.body)
       if (imageUrl) pages.push(imageUrl)
     }
@@ -268,7 +266,7 @@ export class NineMangaClient {
   }
 
   private async getMangaData(mangaId: string) {
-    const mangaUrl = this.withWarning(normalizeUrl(mangaId, BASE_URL))
+    const mangaUrl = this.withMangaWarning(normalizeUrl(mangaId, BASE_URL), true)
     const firstResponse = await this.getHtml(mangaUrl)
     const firstData = this.parser.parseManga(
       firstResponse.body,
@@ -365,8 +363,16 @@ export class NineMangaClient {
     return getText(url, await this.getHeaders(referer))
   }
 
-  private withWarning(url: string): string {
-    return url ? withQueryParam(url, BASE_URL, 'waring', '1') : ''
+  private withMangaWarning(url: string, force = false): string {
+    if (!url || (!force && !this.isMangaUrl(url))) return url
+
+    return withQueryParam(url, BASE_URL, 'waring', '1')
+  }
+
+  private isMangaUrl(url: string): boolean {
+    const normalized = normalizeUrl(url, BASE_URL)
+    const path = normalized.match(/^[a-z][a-z0-9+.-]*:\/\/[^/?#]+([^?#]*)/i)?.[1] ?? normalized
+    return path.includes('/manga/')
   }
 
   private chapterReaderCandidates(url: string): string[] {
@@ -380,12 +386,7 @@ export class NineMangaClient {
     candidates.push(`${stem}-6-1.html`)
     candidates.push(`${stem}-3-1.html`)
     candidates.push(`${stem}-1-1.html`)
-    candidates.push(this.withWarning(`${stem}-10-1.html`))
-    candidates.push(this.withWarning(`${stem}-6-1.html`))
-    candidates.push(this.withWarning(`${stem}-3-1.html`))
-    candidates.push(this.withWarning(`${stem}-1-1.html`))
     candidates.push(`${stem}/`)
-    candidates.push(this.withWarning(`${stem}/`))
 
     return uniqueStrings(candidates.filter(Boolean))
   }
