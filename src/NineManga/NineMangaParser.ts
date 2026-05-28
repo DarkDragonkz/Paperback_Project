@@ -120,6 +120,26 @@ export class NineMangaParser {
 
   parseChapterPage(html: string, currentUrl: string): NineMangaChapterPage[] {
     const $ = cheerio.load(html)
+    const imageUrl = this.normalizeImageUrl($('img.manga_pic[src]').first().attr('src'))
+    const normalizedCurrentUrl = normalizeUrl(currentUrl, this.baseUrl)
+    const pages: NineMangaChapterPage[] = []
+
+    $('select.sl-page option[value]').each((_, option) => {
+      const pageOption = $(option)
+      const pageUrl = normalizeUrl(pageOption.attr('value'), this.baseUrl)
+      if (!pageUrl) return
+
+      pages.push({
+        url: pageUrl,
+        imageUrl:
+          imageUrl && (pageOption.attr('selected') !== undefined || this.sameUrl(pageUrl, normalizedCurrentUrl))
+            ? imageUrl
+            : undefined,
+      })
+    })
+
+    if (pages.length > 0) return uniqueBy(pages, (page) => page.url)
+
     const allImageUrls = uniqueStrings([
       ...this.parseAllImageUrls(html),
       ...this.parseInlineReaderImageUrls(html),
@@ -139,25 +159,7 @@ export class NineMangaParser {
       }))
     }
 
-    const imageUrl = normalizeUrl($('img.manga_pic[src]').first().attr('src'), this.baseUrl)
-    const normalizedCurrentUrl = normalizeUrl(currentUrl, this.baseUrl)
-    const pages: NineMangaChapterPage[] = []
-
-    $('select.sl-page option[value]').each((_, option) => {
-      const pageOption = $(option)
-      const pageUrl = normalizeUrl(pageOption.attr('value'), this.baseUrl)
-      if (!pageUrl) return
-
-      pages.push({
-        url: pageUrl,
-        imageUrl:
-          pageOption.attr('selected') !== undefined || this.sameUrl(pageUrl, normalizedCurrentUrl)
-            ? imageUrl
-            : undefined,
-      })
-    })
-
-    if (pages.length === 0 && (imageUrl || readerImages[0])) {
+    if (imageUrl || readerImages[0]) {
       pages.push({ url: normalizedCurrentUrl, imageUrl: imageUrl || readerImages[0] })
     }
 
@@ -361,7 +363,7 @@ export class NineMangaParser {
     if (!match?.[1]) return images
 
     for (const imageMatch of match[1].matchAll(/["']([^"']+\.(?:webp|jpe?g|png)(?:\?[^"']*)?)["']/gi)) {
-      const imageUrl = normalizeUrl(imageMatch[1], this.baseUrl)
+      const imageUrl = this.normalizeImageUrl(imageMatch[1])
       if (imageUrl) images.push(imageUrl)
     }
 
@@ -410,15 +412,17 @@ export class NineMangaParser {
     const images: string[] = []
     if (!value) return images
 
-    for (const match of value.matchAll(/(?:https?:)?\/\/[^\s"',<>]+\.(?:webp|jpe?g|png)(?:\?[^"',<>\s]*)?/gi)) {
-      const imageUrl = normalizeUrl(match[0], this.baseUrl)
+    const decodedValue = this.decodeHtmlEntities(value)
+
+    for (const match of decodedValue.matchAll(/(?:https?:)?\/\/[^\s"',<>]+\.(?:webp|jpe?g|png)(?:\?[^"',<>\s]*)?/gi)) {
+      const imageUrl = this.normalizeImageUrl(match[0])
       if (this.isImageUrl(imageUrl)) images.push(imageUrl)
     }
 
     if (images.length > 0) return images
 
-    const firstPart = value.split(/\s+/)[0]
-    const imageUrl = normalizeUrl(firstPart, this.baseUrl)
+    const firstPart = decodedValue.split(/\s+/)[0]
+    const imageUrl = this.normalizeImageUrl(firstPart)
     return this.isImageUrl(imageUrl) ? [imageUrl] : []
   }
 
@@ -437,13 +441,26 @@ export class NineMangaParser {
 
   private parseInlineReaderImageUrls(html: string): string[] {
     const images: string[] = []
+    const decodedHtml = this.decodeHtmlEntities(html)
 
-    for (const match of html.matchAll(/(?:https?:)?\/\/[^\s"',<>]+\.(?:webp|jpe?g|png)(?:\?[^"',<>\s]*)?/gi)) {
-      const imageUrl = normalizeUrl(match[0], this.baseUrl)
+    for (const match of decodedHtml.matchAll(/(?:https?:)?\/\/[^\s"',<>]+\.(?:webp|jpe?g|png)(?:\?[^"',<>\s]*)?/gi)) {
+      const imageUrl = this.normalizeImageUrl(match[0])
       if (this.isImageUrl(imageUrl) && this.isReaderImageUrl(imageUrl)) images.push(imageUrl)
     }
 
     return uniqueStrings(images)
+  }
+
+  private normalizeImageUrl(value: string | undefined): string {
+    return normalizeUrl(this.decodeHtmlEntities(value ?? ''), this.baseUrl)
+  }
+
+  private decodeHtmlEntities(value: string): string {
+    return value
+      .replace(/&amp;/g, '&')
+      .replace(/&quot;/g, '"')
+      .replace(/&#039;/g, "'")
+      .replace(/&apos;/g, "'")
   }
 
   private chapterIdFromExternalSource(sourceUrl: string | undefined): string {

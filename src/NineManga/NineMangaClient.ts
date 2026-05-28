@@ -138,7 +138,10 @@ export class NineMangaClient {
     console.log(`[NineManga] Reader first page has all_imgs_url: ${firstPage.body.includes('all_imgs_url')}`)
     console.log(`[NineManga] Reader first page has go/jump: ${firstPage.body.includes('/go/jump/')}`)
     console.log(`[NineManga] Reader first page has go/ennm: ${firstPage.body.includes('/go/ennm/')}`)
+    console.log(`[NineManga] Reader first page has movietop: ${firstPage.body.includes('.movietop.cc/')}`)
+    console.log(`[NineManga] Reader first page has /comics/: ${firstPage.body.includes('/comics/')}`)
     console.log(`[NineManga] Reader parseChapterPage result count: ${pageRefs.length}`)
+    console.log(`[NineManga] Reader first page preview: ${firstPage.body.slice(0, 800)}`)
 
     if (pageRefs.length > 0) return pageRefs
 
