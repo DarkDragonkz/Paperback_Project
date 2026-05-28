@@ -175,7 +175,8 @@ export class NineMangaClient {
     visited: Set<string>
   ): Promise<NineMangaChapterPage[]> {
     const normalizedUrl = normalizeUrl(url, BASE_URL)
-    if (!normalizedUrl || depth > MAX_READER_REDIRECTS || visited.has(normalizedUrl)) return []
+    if (!normalizedUrl || visited.has(normalizedUrl)) return []
+    if (depth > MAX_READER_REDIRECTS) throw new Error('NineManga reader redirect limit reached')
     visited.add(normalizedUrl)
 
     const response = await this.getHtml(normalizedUrl, referer)
@@ -225,7 +226,7 @@ export class NineMangaClient {
     const pendingRequest = this.htmlRequests.get(normalizedUrl)
     if (pendingRequest) return pendingRequest
 
-    const request = getText(normalizedUrl, this.headers(referer))
+    const request = getText(normalizedUrl, this.headers(normalizedUrl, referer))
       .then((response) => {
         this.rememberCache(this.htmlCache, normalizedUrl, response, HTML_CACHE_TTL_MS)
         return response
@@ -238,14 +239,19 @@ export class NineMangaClient {
     return request
   }
 
-  private headers(referer = BASE_URL): HeaderMap {
-    return {
+  private headers(targetUrl: string, referer = BASE_URL): HeaderMap {
+    const headers: HeaderMap = {
       'user-agent': MOBILE_USER_AGENT,
       accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
       'accept-language': 'en-US,en;q=0.9',
-      cookie: 'ninemanga_list_num=1',
       referer,
     }
+
+    if (/^https:\/\/(?:www\.|it\.|es\.|br\.|fr\.|de\.|ru\.)?ninemanga\.com\//i.test(targetUrl)) {
+      headers.cookie = 'ninemanga_list_num=1'
+    }
+
+    return headers
   }
 
   private withWarning(url: string): string {

@@ -9,7 +9,7 @@ import * as cheerio from 'cheerio'
 import type { Cheerio, CheerioAPI } from 'cheerio'
 import type { AnyNode } from 'domhandler'
 
-import { cleanText, splitCommaList } from '../common/parsing/html'
+import { cleanText } from '../common/parsing/html'
 import { uniqueBy, uniqueStrings } from '../common/utils/array'
 import { orderChaptersForReading } from '../common/utils/chapters'
 import { normalizeUrl, pathIdFromUrl } from '../common/utils/url'
@@ -23,7 +23,7 @@ import type {
 
 const ADULT_TAGS = new Set(['adult', 'hentai', 'smut'])
 const MATURE_TAGS = new Set(['mature', 'ecchi'])
-const BAD_IMAGE_PATTERN = /(logo|icon|avatar|sprite|blank|spacer|ads?|advert|tracking|tracker|pixel|analytics|counter|button|captcha|\.gif(?:[?#]|$))/i
+const BAD_IMAGE_PATTERN = /(logo|icon|avatar|sprite|blank|spacer|ads?|advert|tracking|tracker|pixel|analytics|counter|button|captcha|favicon|doubleclick|googlesyndication|google-analytics|facebook)/i
 
 export class NineMangaParser {
   constructor(private readonly baseUrl: string) {}
@@ -105,7 +105,7 @@ export class NineMangaParser {
     // Important: prefer real page images over redirect/server links.
     // Some NineManga mirror pages contain ad/intermediate anchors plus a valid all_imgs_url payload.
     // Following the anchor first can send the reader to fake article/popup domains and lose the pages.
-    const allImageUrls = this.parseAllImageUrls(html)
+    const allImageUrls = this.parseAllImageUrls(html, currentUrl)
     if (allImageUrls.length > 0) {
       return {
         pages: allImageUrls.map((imageUrl, index) => ({
@@ -115,11 +115,20 @@ export class NineMangaParser {
       }
     }
 
+    const readerImages = this.parseReaderImages($, currentUrl)
+    if (readerImages.length > 1) {
+      return {
+        pages: readerImages.map((imageUrl, index) => ({
+          url: `${currentUrl}#page-${index + 1}`,
+          imageUrl,
+        })),
+      }
+    }
+
     const pageRefs = this.parsePageOptions($, currentUrl)
     if (pageRefs.length > 0) return { pages: pageRefs }
 
-    const readerImages = this.parseReaderImages($)
-    if (readerImages.length > 0) {
+    if (readerImages.length === 1) {
       return {
         pages: readerImages.map((imageUrl, index) => ({
           url: `${currentUrl}#page-${index + 1}`,
@@ -144,7 +153,7 @@ export class NineMangaParser {
 
   parseImage(html: string): string | undefined {
     const $ = cheerio.load(html)
-    return this.parseAllImageUrls(html)[0] || this.parseReaderImages($)[0] || undefined
+    return this.parseAllImageUrls(html, this.baseUrl)[0] || this.parseReaderImages($, this.baseUrl)[0] || undefined
   }
 
   toSourceManga(data: NineMangaMangaData): SourceManga {
@@ -252,12 +261,8 @@ export class NineMangaParser {
 
   private parseRedirectUrl(html: string, currentUrl: string): string {
     const patterns = [
-      /window\.location\.href\s*=\s*["'](.*?)["']/i,
-      /location\.href\s*=\s*["'](.*?)["']/i,
-      /window\.location\.replace\(\s*["'](.*?)["']\s*\)/i,
-      /location\.replace\(\s*["'](.*?)["']\s*\)/i,
-      /window\.location\.assign\(\s*["'](.*?)["']\s*\)/i,
-      /location\.assign\(\s*["'](.*?)["']\s*\)/i,
+      /(?:window\.)?location(?:\.href)?\s*=\s*["']([^"']+)["']/i,
+      /(?:window\.)?location\.(?:replace|assign)\(\s*["']([^"']+)["']\s*\)/i,
     ]
 
     for (const pattern of patterns) {
@@ -279,7 +284,10 @@ export class NineMangaParser {
   }
 
   private parsePageOptions($: CheerioAPI, currentUrl: string): NineMangaChapterPage[] {
-    const imageUrl = this.normalizeImageUrl($('div.pic_box img.manga_pic, img.manga_pic').first().attr('src'))
+    const imageUrl = this.normalizeImageUrl(
+      $('div.pic_box img.manga_pic, img.manga_pic, .pic_box img').first().attr('src'),
+      currentUrl
+    )
     const normalizedCurrentUrl = normalizeUrl(currentUrl, this.baseUrl)
     const pages: NineMangaChapterPage[] = []
 
@@ -302,35 +310,37 @@ export class NineMangaParser {
     return imageUrl ? [{ url: normalizedCurrentUrl, imageUrl }] : []
   }
 
-  private parseAllImageUrls(html: string): string[] {
-    const match = html.match(/all_imgs_url\s*:\s*\[\s*([\s\S]*?)\s*,?\s*]/)
-    if (!match?.[1]) return []
-
-    try {
-      const values = JSON.parse(`[${match[1].replace(/,\s*$/, '')}]`) as unknown[]
-      return uniqueStrings(
-        values
-          .map((value) => this.normalizeImageUrl(typeof value === 'string' ? value : ''))
-          .filter((imageUrl) => this.isValidPageImage(imageUrl))
-      )
-    } catch {
-      return uniqueStrings(
-        [...match[1].matchAll(/["']([^"']+)["']/g)]
-          .map((imageMatch) => this.normalizeImageUrl(this.decodeJsString(imageMatch[1])))
-          .filter((imageUrl) => this.isValidPageImage(imageUrl))
-      )
-    }
-  }
-
-  private parseReaderImages($: CheerioAPI): string[] {
+  private parseAllImageUrls(html: string, currentUrl: string): string[] {
     const images: string[] = []
 
-    $('div.pic_box img.manga_pic, img.manga_pic').each((_, element) => {
-      images.push(...this.imageUrlsFromAttributes($(element)))
+    for (const match of html.matchAll(/["']?all_imgs_url["']?\s*[:=]\s*\[\s*([\s\S]*?)\s*,?\s*]/gi)) {
+      const rawArray = match[1] ?? ''
+      try {
+        const values = JSON.parse(`[${rawArray.replace(/,\s*$/, '')}]`) as unknown[]
+        for (const value of values) {
+          const imageUrl = this.normalizeImageUrl(typeof value === 'string' ? value : '', currentUrl)
+          if (this.isValidPageImage(imageUrl)) images.push(imageUrl)
+        }
+      } catch {
+        for (const imageMatch of rawArray.matchAll(/(["'])((?:\\.|(?!\1)[\s\S])*?)\1/g)) {
+          const imageUrl = this.normalizeImageUrl(this.decodeScriptUrl(imageMatch[2] ?? ''), currentUrl)
+          if (this.isValidPageImage(imageUrl)) images.push(imageUrl)
+        }
+      }
+    }
+
+    return uniqueStrings(images)
+  }
+
+  private parseReaderImages($: CheerioAPI, currentUrl: string): string[] {
+    const images: string[] = []
+
+    $('div.pic_box img.manga_pic, img.manga_pic, .pic_box img, #manga img, .reader img, .chapter img, img[src*="niadd"], img[src*="blogspot"], img[src*="blogger"], img[src*="googleusercontent"]').each((_, element) => {
+      images.push(...this.imageUrlsFromAttributes($(element), currentUrl))
     })
 
     $('img').each((_, element) => {
-      for (const imageUrl of this.imageUrlsFromAttributes($(element))) {
+      for (const imageUrl of this.imageUrlsFromAttributes($(element), currentUrl)) {
         if (this.isValidPageImage(imageUrl)) images.push(imageUrl)
       }
     })
@@ -338,12 +348,12 @@ export class NineMangaParser {
     return uniqueStrings(images)
   }
 
-  private imageUrlsFromAttributes(image: Cheerio<AnyNode>): string[] {
+  private imageUrlsFromAttributes(image: Cheerio<AnyNode>, currentUrl: string): string[] {
     const images: string[] = []
     const attributes = ['src', 'data-src', 'data-original', 'lazy-src', 'data-lazy-src', 'srcset', 'data-srcset']
 
     for (const attribute of attributes) {
-      for (const imageUrl of this.imageUrlsFromValue(image.attr(attribute))) {
+      for (const imageUrl of this.imageUrlsFromValue(image.attr(attribute), currentUrl)) {
         if (this.isValidPageImage(imageUrl)) images.push(imageUrl)
       }
     }
@@ -351,15 +361,15 @@ export class NineMangaParser {
     return images
   }
 
-  private imageUrlsFromValue(value: string | undefined): string[] {
+  private imageUrlsFromValue(value: string | undefined, currentUrl: string): string[] {
     if (!value) return []
 
-    const decodedValue = this.decodeHtmlEntities(value)
+    const decodedValue = this.decodeScriptUrl(value)
     const images: string[] = []
 
     for (const part of decodedValue.split(',')) {
       const candidate = part.trim().split(/\s+/)[0]
-      const imageUrl = this.normalizeImageUrl(candidate)
+      const imageUrl = this.normalizeImageUrl(candidate, currentUrl)
       if (imageUrl) images.push(imageUrl)
     }
 
@@ -378,8 +388,8 @@ export class NineMangaParser {
     return normalizeUrl(this.decodeHtmlEntities(raw), currentUrl)
   }
 
-  private normalizeImageUrl(value: string | undefined): string {
-    return normalizeUrl(this.decodeHtmlEntities(value ?? ''), this.baseUrl)
+  private normalizeImageUrl(value: string | undefined, currentUrl = this.baseUrl): string {
+    return normalizeUrl(this.decodeScriptUrl(value ?? ''), currentUrl)
   }
 
   private isValidPageImage(url: string): boolean {
@@ -389,17 +399,19 @@ export class NineMangaParser {
 
     // Known NineManga image hosts/patterns first.
     if (/img\d+\.niadd\.com/i.test(normalized)) return true
+    if (normalized.includes('niadd.com')) return true
     if (normalized.includes('nineanime.com/files/')) return true
     if (normalized.includes('.movietop.cc/')) return true
     if (normalized.includes('blogger.googleusercontent.com')) return true
     if (normalized.includes('bp.blogspot.com') || normalized.includes('blogspot.com')) return true
+    if (normalized.includes('googleusercontent.com')) return true
 
     // Some mirrors expose comic pages under generic /comics/ paths.
-    if (normalized.includes('/comics/')) return /\.(?:webp|jpe?g|png)(?:[?#].*)?$/i.test(normalized)
+    if (normalized.includes('/comics/')) return /\.(?:webp|jpe?g|png|gif)(?:[?#].*)?$/i.test(normalized)
 
     // Last fallback for all_imgs_url payloads on temporary mirror domains.
     // Keep this only for direct image extensions and rely on BAD_IMAGE_PATTERN to reject ads/icons.
-    return /\.(?:webp|jpe?g|png)(?:[?#].*)?$/i.test(normalized)
+    return /\.(?:webp|jpe?g|png|gif)(?:[?#].*)?$/i.test(normalized)
   }
 
   private cleanChapterTitle(title: string, mangaTitle: string): string {
@@ -468,9 +480,16 @@ export class NineMangaParser {
   }
 
   private decodeJsString(value: string): string {
+    return this.decodeScriptUrl(value)
+  }
+
+  private decodeScriptUrl(value: string): string {
     return this.decodeHtmlEntities(value)
+      .trim()
+      .replace(/^["']|["']$/g, '')
+      .replace(/\\u([0-9a-f]{4})/gi, (_, hex: string) => String.fromCharCode(parseInt(hex, 16)))
+      .replace(/\\x([0-9a-f]{2})/gi, (_, hex: string) => String.fromCharCode(parseInt(hex, 16)))
       .replace(/\\\//g, '/')
-      .replace(/\\u0026/g, '&')
-      .replace(/\\x26/g, '&')
+      .replace(/\\\\/g, '\\')
   }
 }

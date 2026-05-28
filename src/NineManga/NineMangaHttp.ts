@@ -22,15 +22,18 @@ async function requestText(request: Request, redirectCount: number): Promise<Tex
   const redirectUrl = redirectLocation(response)
   if (redirectUrl && redirectCount < MAX_REDIRECTS) {
     const nextUrl = normalizeUrl(redirectUrl, response.url || request.url)
+    const nextHeaders: HeaderMap = {
+      ...request.headers,
+      referer: response.url || request.url,
+    }
+
+    if (!isNineMangaUrl(nextUrl)) delete nextHeaders.cookie
 
     return requestText(
       {
         url: nextUrl,
         method: 'GET',
-        headers: {
-          ...request.headers,
-          referer: response.url || request.url,
-        },
+        headers: nextHeaders,
       },
       redirectCount + 1
     )
@@ -45,6 +48,10 @@ async function requestText(request: Request, redirectCount: number): Promise<Tex
     status: response.status,
     body,
   }
+}
+
+function isNineMangaUrl(url: string): boolean {
+  return /^https:\/\/(?:www\.|it\.|es\.|br\.|fr\.|de\.|ru\.)?ninemanga\.com\//i.test(url)
 }
 
 function redirectLocation(response: Response): string {
