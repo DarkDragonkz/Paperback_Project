@@ -89,8 +89,9 @@ export class NineMangaClient {
     const preparedChapter = await this.prepareReaderChapter(chapter)
     this.setReaderUnlockCookie(preparedChapter)
 
-    const chapterUrl = preparedChapter.additionalInfo?.url ?? normalizeUrl(preparedChapter.chapterId, BASE_URL)
+    const chapterUrl = this.resolveReaderChapterUrl(preparedChapter)
     const pageRefs = await this.resolveChapterPageRefs(preparedChapter, chapterUrl)
+    console.log(`[NineManga] Reader page refs found: ${pageRefs.length}`)
 
     const pages: string[] = []
 
@@ -105,10 +106,13 @@ export class NineMangaClient {
       if (imageUrl) pages.push(imageUrl)
     }
 
+    const uniquePages = uniqueStrings(pages)
+    console.log(`[NineManga] Reader images returned: ${uniquePages.length}`)
+
     return {
       id: preparedChapter.chapterId,
       mangaId: preparedChapter.sourceManga.mangaId,
-      pages: uniqueStrings(pages),
+      pages: uniquePages,
     }
   }
 
@@ -373,6 +377,52 @@ export class NineMangaClient {
     const normalized = normalizeUrl(url, BASE_URL)
     const path = normalized.match(/^[a-z][a-z0-9+.-]*:\/\/[^/?#]+([^?#]*)/i)?.[1] ?? normalized
     return path.includes('/manga/')
+  }
+
+  private resolveReaderChapterUrl(chapter: Chapter): string {
+    const rawStoredUrl = chapter.additionalInfo?.url ?? chapter.chapterId
+    const storedUrl = normalizeUrl(rawStoredUrl, BASE_URL)
+    const chapterId = this.chapterIdFromUrl(rawStoredUrl)
+    const mangaSlug = this.mangaSlugFromMangaId(chapter.sourceManga.mangaId)
+    const canonicalUrl = this.canonicalNineMangaChapterUrl(chapter)
+    const shouldUseCanonical = Boolean(canonicalUrl) && !this.isNineMangaChapterUrl(storedUrl)
+    const finalUrl = shouldUseCanonical ? canonicalUrl : storedUrl || canonicalUrl
+
+    console.log(`[NineManga] Reader stored URL: ${storedUrl}`)
+    console.log(`[NineManga] Reader extracted chapter id: ${chapterId}`)
+    console.log(`[NineManga] Reader extracted manga slug: ${mangaSlug}`)
+    console.log(`[NineManga] Reader canonical URL: ${canonicalUrl}`)
+    if (shouldUseCanonical) {
+      console.log(`[NineManga] Reader using canonical URL instead of stored URL: ${canonicalUrl}`)
+    }
+    console.log(`[NineManga] Reader final URL: ${finalUrl}`)
+
+    return finalUrl
+  }
+
+  private canonicalNineMangaChapterUrl(chapter: Chapter): string {
+    const chapterId = this.chapterIdFromUrl(chapter.additionalInfo?.url ?? chapter.chapterId)
+    const mangaSlug = this.mangaSlugFromMangaId(chapter.sourceManga.mangaId)
+
+    if (!chapterId || !mangaSlug) return ''
+
+    return normalizeUrl(`/chapter/${mangaSlug}/${chapterId}.html`, BASE_URL)
+  }
+
+  private mangaSlugFromMangaId(mangaId: string): string {
+    const normalized = normalizeUrl(mangaId, BASE_URL)
+    const match = normalized.match(/\/manga\/([^/?#]+)\.html/i)
+    return match?.[1] ?? ''
+  }
+
+  private isNineMangaChapterUrl(url: string): boolean {
+    const normalized = normalizeUrl(url, BASE_URL).toLowerCase()
+
+    return (
+      /^https:\/\/(?:www\.)?ninemanga\.com\//.test(normalized) &&
+      normalized.includes('/chapter/') &&
+      /\.html(?:[?#].*)?$/.test(normalized)
+    )
   }
 
   private chapterReaderCandidates(url: string): string[] {
