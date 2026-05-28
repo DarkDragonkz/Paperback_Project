@@ -336,8 +336,11 @@ export class RCOStationParser {
   }
 
   private parseInlineReaderImageUrls(html: string): string[] {
-    const images: string[] = []
     const decodedHtml = this.decodeHtmlEntities(html)
+    const protectedImages = this.parseProtectedReaderImageUrls(decodedHtml)
+    if (protectedImages.length > 0) return protectedImages
+
+    const images: string[] = []
 
     for (const match of decodedHtml.matchAll(/https?:\\?\/\\?\/[^"'<>\s]+(?:bp\.blogspot\.com|blogspot\.com|blogger\.googleusercontent\.com)[^"'<>\s]+/gi)) {
       const imageUrl = match[0].replace(/\\\//g, '/').replace(/;$/, '')
@@ -345,6 +348,74 @@ export class RCOStationParser {
     }
 
     return uniqueStrings(images)
+  }
+
+  private parseProtectedReaderImageUrls(html: string): string[] {
+    const images: string[] = []
+
+    for (const match of html.matchAll(/pth\s*=\s*(['"])([\s\S]*?)\1\s*;/g)) {
+      const imageUrl = this.decodeProtectedBlogspotPath(match[2] ?? '')
+      if (this.isValidReaderImage(imageUrl)) images.push(imageUrl)
+    }
+
+    return uniqueStrings(images)
+  }
+
+  private decodeProtectedBlogspotPath(rawPath: string): string {
+    try {
+      let protectedPath = rawPath
+        .replace(/\\\//g, '/')
+        .replace(/Q3__swREYT_/g, 'g')
+        .replace(/pw_\.g28x/g, 'b')
+        .replace(/d2pr\.x_27/g, 'h')
+
+      if (/^https?:\/\//i.test(protectedPath)) return protectedPath
+
+      const queryIndex = protectedPath.indexOf('?')
+      const query = queryIndex >= 0 ? protectedPath.slice(queryIndex) : ''
+      const sizeMarker = protectedPath.indexOf('=s0?') >= 0 ? '=s0?' : '=s1600?'
+      const markerIndex = protectedPath.indexOf(sizeMarker)
+      if (markerIndex <= 0) return ''
+
+      const requestedSize = sizeMarker.startsWith('=s0') ? '=s0' : '=s1600'
+      let token = protectedPath.slice(0, markerIndex)
+      token = token.slice(15, 33) + token.slice(50)
+      token = token.slice(0, token.length - 11) + token[token.length - 2] + token[token.length - 1]
+
+      let decodedPath = this.decodeBase64(token)
+      if (!decodedPath) return ''
+
+      decodedPath = decodedPath.slice(0, 13) + decodedPath.slice(17)
+      decodedPath = decodedPath.slice(0, decodedPath.length - 2) + requestedSize
+
+      return `https://2.bp.blogspot.com/${decodedPath}${query}`
+    } catch {
+      return ''
+    }
+  }
+
+  private decodeBase64(value: string): string {
+    const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
+    const bytes: number[] = []
+    let buffer = 0
+    let bits = 0
+
+    for (const character of value.replace(/-/g, '+').replace(/_/g, '/')) {
+      if (character === '=') break
+
+      const index = alphabet.indexOf(character)
+      if (index < 0) continue
+
+      buffer = (buffer << 6) | index
+      bits += 6
+
+      if (bits >= 8) {
+        bits -= 8
+        bytes.push((buffer >> bits) & 0xff)
+      }
+    }
+
+    return String.fromCharCode(...bytes)
   }
 
   private stripIssueSuffix(title: string, comicUrl: string): string {
