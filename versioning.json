@@ -1,5 +1,5 @@
 {
-  "buildTime": "2026-05-28T21:14:13.260Z",
+  "buildTime": "2026-05-28T21:28:55.639Z",
   "builtWith": {
     "toolchain": "1.0.0-alpha.86",
     "types": "1.0.0-alpha.86"
@@ -9,6 +9,33 @@
     "description": "A modular Paperback iOS 0.9 extension repository, starting with NineManga."
   },
   "sources": [
+    {
+      "version": "1.0.0",
+      "name": "MangaWorld",
+      "icon": "icon.png",
+      "description": "MangaWorld source using normal mobile browser requests for Italian manga catalogue, search, chapters, and reader pages.",
+      "contentRating": "MATURE",
+      "developers": [
+        {
+          "name": "DarkDragonkz",
+          "github": "DarkDragonkz"
+        }
+      ],
+      "language": "it",
+      "badges": [
+        {
+          "label": "Scan ITA",
+          "textColor": "#ffffff",
+          "backgroundColor": "#ea4d00"
+        }
+      ],
+      "capabilities": [
+        1,
+        64,
+        4
+      ],
+      "id": "MangaWorld"
+    },
     {
       "version": "1.0.31",
       "name": "NineManga",
