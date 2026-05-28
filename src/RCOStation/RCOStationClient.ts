@@ -29,6 +29,7 @@ const MOBILE_USER_AGENT =
 const HTML_CACHE_TTL_MS = 2 * 60 * 1000
 const COMIC_DATA_CACHE_TTL_MS = 5 * 60 * 1000
 const MAX_CACHE_ENTRIES = 30
+const MAX_COVER_ENRICHMENT_ITEMS = 24
 
 interface CacheEntry<T> {
   expiresAt: number
@@ -104,7 +105,8 @@ export class RCOStationClient {
     if (!config) return EndOfPageResults
 
     const response = await this.getHtml(BASE_URL)
-    const items = this.parser.parseHomepageSection(response.body, config.heading, response.url)
+    const parsedItems = this.parser.parseHomepageSection(response.body, config.heading, response.url)
+    const items = await this.withUsableImages(parsedItems, config.id === 'latest')
     if (items.length === 0) return EndOfPageResults
 
     return {
@@ -117,7 +119,10 @@ export class RCOStationClient {
     const query = title.trim()
     if (!query) {
       const response = await this.getHtml(BASE_URL)
-      const latest = this.parser.parseHomepageSection(response.body, SECTIONS[0].heading, response.url)
+      const latest = await this.withUsableImages(
+        this.parser.parseHomepageSection(response.body, SECTIONS[0].heading, response.url),
+        true
+      )
 
       return {
         items: latest.map((item) => this.parser.toSearchResult(item)),
@@ -126,11 +131,52 @@ export class RCOStationClient {
     }
 
     const response = await this.postSearch(query)
-    const items = this.parser.parseSearchResults(response.body, response.url)
+    const items = await this.withUsableImages(
+      this.parser.parseSearchResults(response.body, response.url),
+      true
+    )
 
     return {
       items: items.map((item) => this.parser.toSearchResult(item)),
       metadata: undefined,
+    }
+  }
+
+  private async withUsableImages(
+    items: RCOStationListingItem[],
+    enrichMissingImages: boolean
+  ): Promise<RCOStationListingItem[]> {
+    const result: RCOStationListingItem[] = []
+    let enrichedItems = 0
+
+    for (const item of items) {
+      if (this.isUsableImageUrl(item.imageUrl)) {
+        result.push(item)
+        continue
+      }
+
+      if (!enrichMissingImages || enrichedItems >= MAX_COVER_ENRICHMENT_ITEMS) continue
+
+      const imageUrl = await this.coverForManga(item.mangaId)
+      enrichedItems += 1
+
+      if (!this.isUsableImageUrl(imageUrl)) continue
+
+      result.push({
+        ...item,
+        imageUrl,
+      })
+    }
+
+    return result
+  }
+
+  private async coverForManga(mangaId: string): Promise<string> {
+    try {
+      return (await this.getComicData(mangaId)).imageUrl
+    } catch (error) {
+      console.log(`[RCOStation] Could not load cover for ${mangaId}: ${String(error)}`)
+      return ''
     }
   }
 
@@ -254,6 +300,10 @@ export class RCOStationClient {
 
   private comicUrl(mangaId: string): string {
     return normalizeUrl(mangaId, BASE_URL)
+  }
+
+  private isUsableImageUrl(imageUrl: string | undefined): boolean {
+    return /^https?:\/\//i.test(imageUrl ?? '')
   }
 
   private cacheValue<T>(cache: Map<string, CacheEntry<T>>, key: string): T | undefined {
