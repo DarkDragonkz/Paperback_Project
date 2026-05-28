@@ -14,7 +14,7 @@ import {
 } from '@paperback/types'
 
 import { defaultBrowserHeaders, mergeHeaders } from '../common/http/headers'
-import { CloudflareBypassInProgressError, getJson, getText } from '../common/http/request'
+import { CloudflareBypassInProgressError, getJson, getText, type TextResponse } from '../common/http/request'
 import type { PageMetadata } from '../common/models/Pagination'
 import { uniqueStrings } from '../common/utils/array'
 import { normalizeUrl, pathIdFromUrl, withQueryParam } from '../common/utils/url'
@@ -23,11 +23,20 @@ import type {
   NineMangaListingItem,
   NineMangaChapterPage,
   NineMangaMobileSearchItem,
+  NineMangaMangaData,
   NineMangaSectionId,
 } from './NineMangaModels'
 import { NineMangaParser } from './NineMangaParser'
 
 const BASE_URL = 'https://www.ninemanga.com/'
+const HTML_CACHE_TTL_MS = 2 * 60 * 1000
+const MANGA_DATA_CACHE_TTL_MS = 5 * 60 * 1000
+const MAX_CACHE_ENTRIES = 30
+
+interface CacheEntry<T> {
+  expiresAt: number
+  value: T
+}
 
 const SECTIONS: NineMangaListingConfig[] = [
   {
@@ -69,6 +78,9 @@ const SECTIONS: NineMangaListingConfig[] = [
 
 export class NineMangaClient {
   private readonly parser = new NineMangaParser(BASE_URL)
+  private readonly htmlCache = new Map<string, CacheEntry<TextResponse>>()
+  private readonly htmlRequests = new Map<string, Promise<TextResponse>>()
+  private readonly mangaDataCache = new Map<string, CacheEntry<NineMangaMangaData>>()
 
   constructor(private readonly setCookie?: (cookie: Cookie) => void) {}
 
@@ -315,8 +327,11 @@ export class NineMangaClient {
     }
   }
 
-  private async getMangaData(mangaId: string) {
+  private async getMangaData(mangaId: string): Promise<NineMangaMangaData> {
     const mangaUrl = this.withMangaWarning(normalizeUrl(mangaId, BASE_URL), true)
+    const cachedData = this.cacheValue(this.mangaDataCache, mangaUrl)
+    if (cachedData) return cachedData
+
     const firstResponse = await this.getHtml(mangaUrl)
     const firstData = this.parser.parseManga(
       firstResponse.body,
@@ -332,19 +347,26 @@ export class NineMangaClient {
         warningResponse.url
       )
 
-      if (warningData.chapters.length > 0) return warningData
+      if (warningData.chapters.length > 0) {
+        this.rememberCache(this.mangaDataCache, mangaUrl, warningData, MANGA_DATA_CACHE_TTL_MS)
+        return warningData
+      }
     }
 
     if (firstData.chapters.length === 0 && firstData.warningUrl) {
       const fallbackUrl = withQueryParam(mangaUrl, BASE_URL, 'waring', '1')
       const fallbackResponse = await this.getHtml(fallbackUrl)
-      return this.parser.parseManga(
+      const fallbackData = this.parser.parseManga(
         fallbackResponse.body,
         pathIdFromUrl(mangaUrl, BASE_URL),
         fallbackResponse.url
       )
+
+      this.rememberCache(this.mangaDataCache, mangaUrl, fallbackData, MANGA_DATA_CACHE_TTL_MS)
+      return fallbackData
     }
 
+    this.rememberCache(this.mangaDataCache, mangaUrl, firstData, MANGA_DATA_CACHE_TTL_MS)
     return firstData
   }
 
@@ -410,7 +432,24 @@ export class NineMangaClient {
   }
 
   private async getHtml(url: string, referer = BASE_URL) {
-    return getText(url, await this.getHeaders(referer))
+    const normalizedUrl = normalizeUrl(url, BASE_URL)
+    const cachedResponse = this.cacheValue(this.htmlCache, normalizedUrl)
+    if (cachedResponse) return cachedResponse
+
+    const pendingRequest = this.htmlRequests.get(normalizedUrl)
+    if (pendingRequest) return pendingRequest
+
+    const request = getText(normalizedUrl, await this.getHeaders(referer))
+      .then((response) => {
+        this.rememberCache(this.htmlCache, normalizedUrl, response, HTML_CACHE_TTL_MS)
+        return response
+      })
+      .finally(() => {
+        this.htmlRequests.delete(normalizedUrl)
+      })
+
+    this.htmlRequests.set(normalizedUrl, request)
+    return request
   }
 
   private withMangaWarning(url: string, force = false): string {
@@ -590,6 +629,37 @@ export class NineMangaClient {
   private readPage(metadata: Metadata | undefined): number {
     const page = (metadata as PageMetadata | undefined)?.page
     return typeof page === 'number' && page > 0 ? page : 1
+  }
+
+  private cacheValue<T>(cache: Map<string, CacheEntry<T>>, key: string): T | undefined {
+    const entry = cache.get(key)
+    if (!entry) return undefined
+
+    if (entry.expiresAt <= Date.now()) {
+      cache.delete(key)
+      return undefined
+    }
+
+    return entry.value
+  }
+
+  private rememberCache<T>(
+    cache: Map<string, CacheEntry<T>>,
+    key: string,
+    value: T,
+    ttlMs: number
+  ): void {
+    cache.set(key, {
+      expiresAt: Date.now() + ttlMs,
+      value,
+    })
+
+    while (cache.size > MAX_CACHE_ENTRIES) {
+      const oldestKey = cache.keys().next().value
+      if (!oldestKey) return
+
+      cache.delete(oldestKey)
+    }
   }
 }
 

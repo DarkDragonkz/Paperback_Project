@@ -14,10 +14,11 @@ import {
 
 import type { HeaderMap } from '../common/http/headers'
 import { normalizeUrl, pathIdFromUrl, withQueryParam } from '../common/utils/url'
-import { getText } from './MangaWorldHttp'
+import { getText, type TextResponse } from './MangaWorldHttp'
 import type {
   MangaWorldListingConfig,
   MangaWorldListingItem,
+  MangaWorldMangaData,
   MangaWorldPageMetadata,
 } from './MangaWorldModels'
 import { MangaWorldParser } from './MangaWorldParser'
@@ -25,6 +26,14 @@ import { MangaWorldParser } from './MangaWorldParser'
 const BASE_URL = 'https://www.mangaworld.mx/'
 const MOBILE_USER_AGENT =
   'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1'
+const HTML_CACHE_TTL_MS = 2 * 60 * 1000
+const MANGA_DATA_CACHE_TTL_MS = 5 * 60 * 1000
+const MAX_CACHE_ENTRIES = 30
+
+interface CacheEntry<T> {
+  expiresAt: number
+  value: T
+}
 
 const SECTIONS: MangaWorldListingConfig[] = [
   {
@@ -43,6 +52,9 @@ const SECTIONS: MangaWorldListingConfig[] = [
 
 export class MangaWorldClient {
   private readonly parser = new MangaWorldParser(BASE_URL)
+  private readonly htmlCache = new Map<string, CacheEntry<TextResponse>>()
+  private readonly htmlRequests = new Map<string, Promise<TextResponse>>()
+  private readonly mangaDataCache = new Map<string, CacheEntry<MangaWorldMangaData>>()
 
   async getMangaDetails(mangaId: string): Promise<SourceManga> {
     const data = await this.getMangaData(mangaId)
@@ -130,12 +142,19 @@ export class MangaWorldClient {
   }
 
   private async getMangaData(mangaId: string) {
-    const response = await this.getHtml(this.mangaUrl(mangaId))
-    return this.parser.parseManga(
+    const mangaUrl = this.mangaUrl(mangaId)
+    const cachedData = this.cacheValue(this.mangaDataCache, mangaUrl)
+    if (cachedData) return cachedData
+
+    const response = await this.getHtml(mangaUrl)
+    const data = this.parser.parseManga(
       response.body,
       pathIdFromUrl(response.url, BASE_URL),
       response.url
     )
+
+    this.rememberCache(this.mangaDataCache, mangaUrl, data, MANGA_DATA_CACHE_TTL_MS)
+    return data
   }
 
   private toDiscoverItem(
@@ -167,7 +186,24 @@ export class MangaWorldClient {
   }
 
   private async getHtml(url: string, referer = BASE_URL) {
-    return getText(normalizeUrl(url, BASE_URL), this.headers(referer))
+    const normalizedUrl = normalizeUrl(url, BASE_URL)
+    const cachedResponse = this.cacheValue(this.htmlCache, normalizedUrl)
+    if (cachedResponse) return cachedResponse
+
+    const pendingRequest = this.htmlRequests.get(normalizedUrl)
+    if (pendingRequest) return pendingRequest
+
+    const request = getText(normalizedUrl, this.headers(referer))
+      .then((response) => {
+        this.rememberCache(this.htmlCache, normalizedUrl, response, HTML_CACHE_TTL_MS)
+        return response
+      })
+      .finally(() => {
+        this.htmlRequests.delete(normalizedUrl)
+      })
+
+    this.htmlRequests.set(normalizedUrl, request)
+    return request
   }
 
   private headers(referer = BASE_URL): HeaderMap {
@@ -191,5 +227,36 @@ export class MangaWorldClient {
   private readNextUrl(metadata: Metadata | undefined): string {
     const nextUrl = (metadata as MangaWorldPageMetadata | undefined)?.nextUrl
     return typeof nextUrl === 'string' ? nextUrl : ''
+  }
+
+  private cacheValue<T>(cache: Map<string, CacheEntry<T>>, key: string): T | undefined {
+    const entry = cache.get(key)
+    if (!entry) return undefined
+
+    if (entry.expiresAt <= Date.now()) {
+      cache.delete(key)
+      return undefined
+    }
+
+    return entry.value
+  }
+
+  private rememberCache<T>(
+    cache: Map<string, CacheEntry<T>>,
+    key: string,
+    value: T,
+    ttlMs: number
+  ): void {
+    cache.set(key, {
+      expiresAt: Date.now() + ttlMs,
+      value,
+    })
+
+    while (cache.size > MAX_CACHE_ENTRIES) {
+      const oldestKey = cache.keys().next().value
+      if (!oldestKey) return
+
+      cache.delete(oldestKey)
+    }
   }
 }
