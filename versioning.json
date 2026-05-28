@@ -1,5 +1,5 @@
 {
-  "buildTime": "2026-05-28T22:58:55.942Z",
+  "buildTime": "2026-05-28T23:13:09.208Z",
   "builtWith": {
     "toolchain": "1.0.0-alpha.86",
     "types": "1.0.0-alpha.86"
@@ -37,10 +37,10 @@
       "id": "MangaWorld"
     },
     {
-      "version": "1.0.31",
+      "version": "1.1.0",
       "name": "NineManga",
       "icon": "icon.png",
-      "description": "NineManga source for a modular Paperback iOS 0.9 extension repository.",
+      "description": "NineManga source using normal HTTP requests and Keiyoushi-compatible HTML parsing.",
       "contentRating": "ADULT",
       "developers": [
         {
@@ -59,10 +59,36 @@
       "capabilities": [
         1,
         64,
-        4,
-        16
+        4
       ],
       "id": "NineManga"
+    },
+    {
+      "version": "1.0.0",
+      "name": "RCOStation",
+      "icon": "icon.png",
+      "description": "ReadComicOnline / RCOStation source using normal mobile browser requests for comics, issues, search, and reader pages.",
+      "contentRating": "MATURE",
+      "developers": [
+        {
+          "name": "DarkDragonkz",
+          "github": "DarkDragonkz"
+        }
+      ],
+      "language": "en",
+      "badges": [
+        {
+          "label": "Comics",
+          "textColor": "#ffffff",
+          "backgroundColor": "#b91c1c"
+        }
+      ],
+      "capabilities": [
+        1,
+        64,
+        4
+      ],
+      "id": "RCOStation"
     },
     {
       "version": "1.0.1",
