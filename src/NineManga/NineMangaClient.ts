@@ -127,6 +127,9 @@ export class NineMangaClient {
   ): Promise<NineMangaChapterPage[]> {
     const attemptedSourceUrls = new Set<string>()
     const failedSourceChapterIds = new Set<string>()
+    console.log(
+      `[NineManga] Reader unlock cookies prepared before reader request: book=${chapter.additionalInfo?.bookId ?? 'unknown'}, chapter=${this.chapterIdFromUrl(chapter.additionalInfo?.url ?? chapter.chapterId) || 'unknown'}, url=${chapterUrl}`
+    )
     const firstPage = await this.getHtml(chapterUrl)
     let pageRefs = this.parser.parseChapterPage(firstPage.body, firstPage.url)
 
