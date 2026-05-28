@@ -239,6 +239,7 @@ export class MangaWorldParser {
         langCode: 'it',
         chapNum: this.parseChapterNumber(title),
         title,
+        volume: this.parseVolumeNumber(item),
         publishDate: this.parseItalianDate(cleanText(item.find('.chap-date, time').first().text())),
         sortingIndex: index,
         additionalInfo: {
@@ -379,6 +380,19 @@ export class MangaWorldParser {
 
     const fallback = value.match(/(\d+(?:\.\d+)?)/)?.[1]
     return fallback ? Number(fallback) : 0
+  }
+
+  private parseVolumeNumber(chapter: Cheerio<AnyNode>): number | undefined {
+    const volumeText = cleanText(
+      chapter
+        .closest('.volume-element')
+        .find('.volume-name')
+        .first()
+        .text()
+    )
+    const volume = volumeText.match(/(?:vol(?:ume)?\.?)\s*(\d+(?:\.\d+)?)/i)?.[1]
+
+    return volume ? Number(volume) : undefined
   }
 
   private parseItalianDate(value: string): Date | undefined {
