@@ -1,12 +1,12 @@
 import { ContentRating, SourceIntents, type ExtensionInfo } from '@paperback/types'
 
 const sourceInfo = {
-  version: '1.1.0',
-  name: 'NineManga',
+  version: '1.0.0',
+  name: 'RCOStation',
   icon: 'icon.png',
   description:
-    'NineManga source using normal HTTP requests and Keiyoushi-compatible HTML parsing.',
-  contentRating: ContentRating.ADULT,
+    'ReadComicOnline / RCOStation source using normal mobile browser requests for comics, issues, search, and reader pages.',
+  contentRating: ContentRating.MATURE,
   developers: [
     {
       name: 'DarkDragonkz',
@@ -16,9 +16,9 @@ const sourceInfo = {
   language: 'en',
   badges: [
     {
-      label: 'Source',
+      label: 'Comics',
       textColor: '#ffffff',
-      backgroundColor: '#3b4252',
+      backgroundColor: '#b91c1c',
     },
   ],
   capabilities: [

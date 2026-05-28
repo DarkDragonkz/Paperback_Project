@@ -15,17 +15,17 @@ import type {
   SourceManga,
 } from '@paperback/types'
 
-import { NineMangaClient } from './NineMangaClient'
+import { RCOStationClient } from './RCOStationClient'
 
-const SOURCE_VERSION = '1.1.0'
+const SOURCE_VERSION = '1.0.0'
 
-class NineMangaExtension
+class RCOStationExtension
   implements Extension, ChapterProviding, SearchResultsProviding, DiscoverSectionProviding
 {
-  private readonly client = new NineMangaClient()
+  private readonly client = new RCOStationClient()
 
   async initialise(): Promise<void> {
-    console.log(`[NineManga] Initialising source ${SOURCE_VERSION}`)
+    console.log(`[RCOStation] Initialising source ${SOURCE_VERSION}`)
   }
 
   async getMangaDetails(mangaId: string): Promise<SourceManga> {
@@ -45,8 +45,9 @@ class NineMangaExtension
     metadata: Metadata | undefined,
     sortingOption: SortingOption | undefined
   ): Promise<PagedResults<SearchResultItem>> {
+    void metadata
     void sortingOption
-    return this.client.getSearchResults(query.title, metadata)
+    return this.client.getSearchResults(query.title)
   }
 
   async getDiscoverSections(): Promise<DiscoverSection[]> {
@@ -57,8 +58,9 @@ class NineMangaExtension
     section: DiscoverSection,
     metadata: Metadata | undefined
   ): Promise<PagedResults<DiscoverSectionItem>> {
-    return this.client.getDiscoverSectionItems(section, metadata)
+    void metadata
+    return this.client.getDiscoverSectionItems(section)
   }
 }
 
-export const NineManga = new NineMangaExtension()
+export const RCOStation = new RCOStationExtension()

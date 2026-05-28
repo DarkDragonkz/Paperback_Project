@@ -5,6 +5,7 @@ import type { AnyNode } from 'domhandler'
 
 import { cleanText, safeAttr, safeText, splitCommaList } from '../common/parsing/html'
 import { uniqueBy, uniqueStrings } from '../common/utils/array'
+import { orderChaptersForReading } from '../common/utils/chapters'
 import { normalizeUrl, pathIdFromUrl } from '../common/utils/url'
 import type { ReadAllComicsListingItem, ReadAllComicsMangaData } from './ReadAllComicsModels'
 
@@ -279,7 +280,7 @@ export class ReadAllComicsParser {
       })
     })
 
-    return uniqueBy(chapters, (chapter) => chapter.chapterId)
+    return orderChaptersForReading(uniqueBy(chapters, (chapter) => chapter.chapterId))
   }
 
   private issueAnchors($: CheerioAPI): Cheerio<AnyNode> {

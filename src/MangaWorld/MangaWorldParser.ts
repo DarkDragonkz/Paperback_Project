@@ -11,6 +11,7 @@ import type { AnyNode } from 'domhandler'
 
 import { cleanText, splitCommaList } from '../common/parsing/html'
 import { uniqueBy, uniqueStrings } from '../common/utils/array'
+import { orderChaptersForReading } from '../common/utils/chapters'
 import { normalizeUrl, pathIdFromUrl } from '../common/utils/url'
 import type { MangaWorldListingItem, MangaWorldMangaData } from './MangaWorldModels'
 
@@ -248,12 +249,7 @@ export class MangaWorldParser {
       })
     })
 
-    return uniqueBy(chapters, (chapter) => chapter.chapterId)
-      .reverse()
-      .map((chapter, index) => ({
-        ...chapter,
-        sortingIndex: index,
-      }))
+    return orderChaptersForReading(uniqueBy(chapters, (chapter) => chapter.chapterId))
   }
 
   private parseMetadata($: CheerioAPI): Record<string, string> {
