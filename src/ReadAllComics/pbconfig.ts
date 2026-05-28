@@ -1,7 +1,7 @@
 import { ContentRating, SourceIntents, type ExtensionInfo } from '@paperback/types'
 
 const sourceInfo = {
-  version: '1.0.0',
+  version: '1.0.1',
   name: 'ReadAllComics',
   icon: 'icon.png',
   description:
@@ -29,4 +29,3 @@ const sourceInfo = {
 } satisfies ExtensionInfo
 
 export default sourceInfo
-

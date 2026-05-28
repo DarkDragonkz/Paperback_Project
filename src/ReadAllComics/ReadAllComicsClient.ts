@@ -59,6 +59,7 @@ export class ReadAllComicsClient {
     const pages = this.parser.parseIssueImages(response.body, response.url)
 
     console.log(`[ReadAllComics] Reader images returned: ${pages.length}`)
+    if (pages.length === 0) throw new Error('No readable comic pages found for this chapter')
 
     return {
       id: chapter.chapterId,
@@ -134,20 +135,22 @@ export class ReadAllComicsClient {
       BASE_URL
     )
     const response = await this.getHtml(url)
-    return this.parser.parseCatalogItems(response.body)
+    const catalogItems = this.parser.parseCatalogItems(response.body)
+    return catalogItems.length > 0 ? catalogItems : this.parser.parseAjaxSearchResults(response.body)
   }
 
   private async searchWithAjax(query: string): Promise<ReadAllComicsListingItem[]> {
     try {
       const homepage = await this.getHtml(BASE_URL)
-      const nonce = this.parser.parseWpAjaxNonce(homepage.body)
+      const ajaxConfig = this.parser.parseWpAjaxConfig(homepage.body)
+      const nonce = ajaxConfig.nonce
       if (!nonce) {
         console.log('[ReadAllComics] AJAX search nonce not found')
         return []
       }
 
       const response = await postForm(
-        AJAX_URL,
+        normalizeUrl(ajaxConfig.ajaxUrl || AJAX_URL, BASE_URL),
         this.formBody({
           action: 'htp_search',
           nonce,
@@ -218,4 +221,3 @@ export class ReadAllComicsClient {
     return typeof page === 'number' && page > 0 ? page : 1
   }
 }
-

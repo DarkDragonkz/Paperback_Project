@@ -1,6 +1,7 @@
 export function normalizeUrl(rawUrl: string | undefined, baseUrl: string): string {
   const value = rawUrl?.trim()
   if (!value) return ''
+  if (/^(?:javascript|mailto|tel|data):/i.test(value) || value.startsWith('#')) return ''
 
   if (/^[a-z][a-z0-9+.-]*:\/\//i.test(value)) return value
   if (value.startsWith('//')) return `${protocolFromUrl(baseUrl)}${value}`

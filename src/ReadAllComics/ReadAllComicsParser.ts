@@ -25,10 +25,12 @@ const IGNORED_IMAGE_HOSTS = new Set([
   'bidmatic.io',
   'rbstsystems.live',
   '4dex.io',
+  'imp9.pubadx.one',
+  'uploadfiles.revwala.com',
 ])
 
 const BAD_IMAGE_PATTERN =
-  /(logo|avatar|ads?|advert|banner|tracking|pixel|blank|spacer|icon|sprite|preloader|loader|captcha|analytics|addtoany|counter|button)/i
+  /(logo|avatar|ads?|advert|banner|tracking|tracker|pixel|blank|spacer|icon|sprite|preloader|loader|captcha|analytics|addtoany|counter|button|emoji|wp-content\/plugins|googleads|doubleclick|dtscout|whos\.amung\.us|pubadx)/i
 const ISSUE_URL_PATTERN = /^https:\/\/readallcomics\.com\/(?!category\/|page\/|tag\/|author\/|wp-)[^/?#]+\/?$/i
 
 export class ReadAllComicsParser {
@@ -41,7 +43,7 @@ export class ReadAllComicsParser {
     $('ul.list-story.categories > li').each((_, element) => {
       const item = $(element)
       const titleAnchor = item.find('a.cat-title[href], a.cat-title').first()
-      const linkAnchor = item.find('a.book-link[href], a.cat-title[href]').first()
+      const linkAnchor = item.find('a.cat-title[href], a.book-link[href]').first()
       const mangaUrl = normalizeUrl(linkAnchor.attr('href'), this.baseUrl)
       const title = cleanText(titleAnchor.text()) || cleanText(titleAnchor.attr('title'))
 
@@ -113,13 +115,13 @@ export class ReadAllComicsParser {
   parseManga(html: string, mangaId: string, shareUrl: string): ReadAllComicsMangaData {
     const $ = cheerio.load(html)
     const catalogItem = this.parseCatalogItems(html)[0]
+    const root = $('.description-archive').first()
     const title =
-      safeText($, 'h1.entry-title') ||
-      safeText($, 'h1.page-title') ||
-      safeText($, 'h1') ||
+      safeText($, 'h1', root.length ? root : undefined) ||
+      this.titleFromDocument($) ||
       catalogItem?.title ||
       this.titleFromMangaId(mangaId)
-    const metadata = this.parseMetadata($)
+    const metadata = this.parseMetadata($, root)
     const publisher = metadata.Publisher || catalogItem?.publisher
     const genres = uniqueStrings([
       ...this.parseGenres(metadata.Genres ?? ''),
@@ -127,8 +129,7 @@ export class ReadAllComicsParser {
     ])
     const imageUrl =
       normalizeUrl(
-        safeAttr($, '.description-archive img', 'src') ||
-          safeAttr($, '.description-archive img', 'data-src') ||
+        this.firstImageAttribute(root.find('img').first()) ||
           safeAttr($, '.entry-content img', 'src') ||
           catalogItem?.imageUrl,
         this.baseUrl
@@ -154,20 +155,22 @@ export class ReadAllComicsParser {
     const images: string[] = []
 
     const selectors = [
-      '.entry-content img',
-      'article img',
-      '.post img',
-      '.separator img',
+      '.index-wrapper img',
+      '.index-wrapper center img',
+      'center img',
       'img[src*="blogger.googleusercontent.com"]',
       'img[src*="bp.blogspot.com"]',
       'img[src*="blogspot.com"]',
+      'img[data-src*="blogger.googleusercontent.com"]',
+      'img[data-lazy-src*="blogger.googleusercontent.com"]',
+      'img[data-original*="blogger.googleusercontent.com"]',
     ]
 
     for (const selector of selectors) {
       $(selector).each((_, element) => {
         const image = $(element)
         for (const imageUrl of this.imageUrlsFromAttributes(image, currentUrl)) {
-          if (!this.isBadImage(imageUrl, image)) images.push(imageUrl)
+          if (this.isComicPageImage(imageUrl, image)) images.push(imageUrl)
         }
       })
     }
@@ -210,16 +213,26 @@ export class ReadAllComicsParser {
       item.publisher
   }
 
-  parseWpAjaxNonce(html: string): string {
+  parseWpAjaxConfig(html: string): { nonce: string; ajaxUrl: string } {
     const match = html.match(/var\s+htps\s*=\s*(\{.*?\});/s)
-    if (!match?.[1]) return ''
+    if (!match?.[1]) return { nonce: '', ajaxUrl: '' }
 
     try {
-      const data = JSON.parse(match[1]) as { nonce?: unknown }
-      return typeof data.nonce === 'string' ? data.nonce : ''
+      const data = JSON.parse(match[1]) as { ajax_url?: unknown; nonce?: unknown }
+      return {
+        nonce: typeof data.nonce === 'string' ? data.nonce : '',
+        ajaxUrl: typeof data.ajax_url === 'string' ? data.ajax_url : '',
+      }
     } catch {
-      return match[1].match(/["']nonce["']\s*:\s*["']([^"']+)["']/)?.[1] ?? ''
+      return {
+        nonce: match[1].match(/["']nonce["']\s*:\s*["']([^"']+)["']/)?.[1] ?? '',
+        ajaxUrl: match[1].match(/["']ajax_url["']\s*:\s*["']([^"']+)["']/)?.[1] ?? '',
+      }
     }
+  }
+
+  parseWpAjaxNonce(html: string): string {
+    return this.parseWpAjaxConfig(html).nonce
   }
 
   private parseChapters(
@@ -282,11 +295,13 @@ export class ReadAllComicsParser {
     return anchors.filter((_, element) => this.isIssueUrl(normalizeUrl($(element).attr('href'), this.baseUrl)))
   }
 
-  private parseMetadata($: CheerioAPI): Record<string, string> {
+  private parseMetadata($: CheerioAPI, root?: Cheerio<AnyNode>): Record<string, string> {
     const metadata: Record<string, string> = {}
+    const scope = root?.length ? root : $('.description-archive, .cat-info, .entry-content, article')
 
     const candidates = [
-      ...$('.description-archive, .cat-info, .entry-content, article').toArray(),
+      ...scope.find('p, div').toArray(),
+      ...scope.toArray(),
     ]
 
     for (const element of candidates) {
@@ -301,14 +316,16 @@ export class ReadAllComicsParser {
   }
 
   private parseSynopsis($: CheerioAPI): string {
-    const description = $('.description-archive, .entry-content, article').first().clone()
-    description.find('img, script, style, ul.list-story, .list-story').remove()
+    const root = $('.description-archive').first()
+    const body = root.find('.b').first()
+    const description = (body.length ? body : root.length ? root : $('.entry-content, article').first()).clone()
+    description.find('img, script, style, .group-box, ul.list-story, .list-story, .addtoany_share_save_container').remove()
 
     const rows = description
       .text()
       .split(/\n+/)
       .map((row) => cleanText(row))
-      .filter((row) => row && !/^(Publisher|Genres|Year|Issues|Vol\.?)/i.test(row))
+      .filter((row) => row && !this.isNoiseDescriptionRow(row))
 
     return rows.join('\n').trim()
   }
@@ -319,7 +336,15 @@ export class ReadAllComicsParser {
 
   private imageUrlsFromAttributes(image: Cheerio<AnyNode>, currentUrl: string): string[] {
     const images: string[] = []
-    const attributes = ['src', 'data-src', 'data-lazy-src', 'data-original', 'srcset', 'data-srcset']
+    const attributes = [
+      'src',
+      'data-src',
+      'data-lazy-src',
+      'data-original',
+      'data-jh-lazy-img',
+      'srcset',
+      'data-srcset',
+    ]
 
     for (const attribute of attributes) {
       for (const imageUrl of this.imageUrlsFromValue(image.attr(attribute), currentUrl)) {
@@ -352,34 +377,34 @@ export class ReadAllComicsParser {
       image.attr('data-src') ||
       image.attr('data-lazy-src') ||
       image.attr('data-original') ||
+      image.attr('data-jh-lazy-img') ||
       ''
     )
   }
 
-  private isBadImage(url: string, image: Cheerio<AnyNode>): boolean {
+  private isComicPageImage(url: string, image: Cheerio<AnyNode>): boolean {
     const normalized = url.toLowerCase()
-    if (!normalized || normalized.startsWith('data:')) return true
-    if (BAD_IMAGE_PATTERN.test(normalized)) return true
+    if (!normalized || normalized.startsWith('data:')) return false
+    if (BAD_IMAGE_PATTERN.test(normalized)) return false
 
     const host = this.hostFromUrl(normalized)
-    if (IGNORED_IMAGE_HOSTS.has(host)) return true
+    if (IGNORED_IMAGE_HOSTS.has(host)) return false
+    if (!this.isReaderImageHost(host)) return false
 
     const className = cleanText(image.attr('class'))
     const alt = cleanText(image.attr('alt'))
     const id = cleanText(image.attr('id'))
-    if (BAD_IMAGE_PATTERN.test(`${className} ${alt} ${id}`)) return true
+    if (BAD_IMAGE_PATTERN.test(`${className} ${alt} ${id}`)) return false
 
     const width = this.numberAttribute(image, 'width')
     const height = this.numberAttribute(image, 'height')
-    if ((width > 0 && width < 200) || (height > 0 && height < 200)) return true
+    if ((width > 0 && width < 120) || (height > 0 && height < 120)) return false
 
-    return !this.isReaderImageHost(host) && !/\.(?:webp|jpe?g|png)(?:[?#].*)?$/i.test(url)
+    return true
   }
 
   private isReaderImageHost(host: string): boolean {
     return (
-      host === 'readallcomics.com' ||
-      host.endsWith('.readallcomics.com') ||
       host === 'blogger.googleusercontent.com' ||
       host.endsWith('.blogger.googleusercontent.com') ||
       host === 'bp.blogspot.com' ||
@@ -403,8 +428,26 @@ export class ReadAllComicsParser {
   }
 
   private valueAfterLabel(text: string, label: string): string {
-    const match = text.match(new RegExp(`${label}:\\s*([^\\n|]+?)(?=\\s+(?:Publisher|Genres|Year|Issues):|$)`, 'i'))
+    const match = text.match(
+      new RegExp(`${label}:\\s*([^\\n|]+?)(?=\\s+(?:Publisher|Genres|Year|Issues):|\\s+Vol\\s+\\d+:|\\s+Issue List|$)`, 'i')
+    )
     return cleanText(match?.[1])
+  }
+
+  private titleFromDocument($: CheerioAPI): string {
+    const rawTitle = safeText($, 'title')
+    return cleanText(
+      rawTitle
+        .replace(/^Read\s+/i, '')
+        .replace(/\s+Comic Book Online Free.*$/i, '')
+        .replace(/\s+\|\s+Read All Comics Online.*$/i, '')
+    )
+  }
+
+  private isNoiseDescriptionRow(row: string): boolean {
+    if (/^(Publisher|Genres|Year|Issues):/i.test(row)) return true
+    if (/^(Issue List|Facebook|Reddit|X|Copy Link|Share)$/i.test(row)) return true
+    return /\b(Facebook|Reddit|Copy Link|Share)\b/i.test(row) && row.length < 80
   }
 
   private parseChapterNumber(value: string): number {
@@ -479,4 +522,3 @@ export class ReadAllComicsParser {
       .replace(/&apos;/g, "'")
   }
 }
-

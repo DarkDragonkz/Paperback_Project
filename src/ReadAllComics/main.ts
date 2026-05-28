@@ -17,7 +17,7 @@ import type {
 
 import { ReadAllComicsClient } from './ReadAllComicsClient'
 
-const SOURCE_VERSION = '1.0.0'
+const SOURCE_VERSION = '1.0.1'
 
 class ReadAllComicsExtension
   implements Extension, ChapterProviding, SearchResultsProviding, DiscoverSectionProviding
@@ -63,4 +63,3 @@ class ReadAllComicsExtension
 }
 
 export const ReadAllComics = new ReadAllComicsExtension()
-
