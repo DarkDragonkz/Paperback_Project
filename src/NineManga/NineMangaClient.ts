@@ -89,7 +89,12 @@ export class NineMangaClient {
     const preparedChapter = await this.prepareReaderChapter(chapter)
     this.setReaderUnlockCookie(preparedChapter)
 
-    const chapterUrl = this.resolveReaderChapterUrl(preparedChapter)
+    const rawChapterUrl = this.resolveReaderChapterUrl(preparedChapter)
+    const chapterUrl = this.stripWarningParamFromChapterUrl(rawChapterUrl)
+
+    console.log(`[NineManga] Reader URL before strip: ${rawChapterUrl}`)
+    console.log(`[NineManga] Reader URL after strip: ${chapterUrl}`)
+
     const pageRefs = await this.resolveChapterPageRefs(preparedChapter, chapterUrl)
     console.log(`[NineManga] Reader page refs found: ${pageRefs.length}`)
 
@@ -124,16 +129,33 @@ export class NineMangaClient {
     const failedSourceChapterIds = new Set<string>()
     const firstPage = await this.getHtml(chapterUrl)
     let pageRefs = this.parser.parseChapterPage(firstPage.body, firstPage.url)
+
+    console.log(`[NineManga] Reader first page URL: ${firstPage.url}`)
+    console.log(`[NineManga] Reader first page status: ${firstPage.status}`)
+    console.log(`[NineManga] Reader first page HTML length: ${firstPage.body.length}`)
+    console.log(`[NineManga] Reader first page has manga_pic: ${firstPage.body.includes('manga_pic')}`)
+    console.log(`[NineManga] Reader first page has sl-page: ${firstPage.body.includes('sl-page')}`)
+    console.log(`[NineManga] Reader first page has all_imgs_url: ${firstPage.body.includes('all_imgs_url')}`)
+    console.log(`[NineManga] Reader first page has go/jump: ${firstPage.body.includes('/go/jump/')}`)
+    console.log(`[NineManga] Reader first page has go/ennm: ${firstPage.body.includes('/go/ennm/')}`)
+    console.log(`[NineManga] Reader parseChapterPage result count: ${pageRefs.length}`)
+
     if (pageRefs.length > 0) return pageRefs
 
-    pageRefs = await this.resolveSourceSelection(
-      chapter,
-      firstPage.body,
-      firstPage.url,
-      attemptedSourceUrls,
-      failedSourceChapterIds
-    )
-    if (pageRefs.length > 0) return pageRefs
+    const isCanonicalReader = this.isCanonicalNineMangaReaderUrl(firstPage.url)
+
+    if (!isCanonicalReader) {
+      pageRefs = await this.resolveSourceSelection(
+        chapter,
+        firstPage.body,
+        firstPage.url,
+        attemptedSourceUrls,
+        failedSourceChapterIds
+      )
+      if (pageRefs.length > 0) return pageRefs
+    } else {
+      console.log(`[NineManga] Skipping external source selector on canonical NineManga reader page: ${firstPage.url}`)
+    }
 
     const candidates = this.chapterReaderCandidates(chapterUrl).filter(
       (candidate) => candidate !== chapterUrl
@@ -141,9 +163,13 @@ export class NineMangaClient {
 
     for (const candidate of candidates) {
       const candidateChapterId = this.chapterIdFromUrl(candidate)
-      if (candidateChapterId && failedSourceChapterIds.has(candidateChapterId)) {
-        console.log(`[NineManga] Stopping fallback loop for failed cid ${candidateChapterId}`)
-        break
+      if (
+        candidateChapterId &&
+        failedSourceChapterIds.has(candidateChapterId) &&
+        !this.isCanonicalNineMangaReaderUrl(candidate)
+      ) {
+        console.log(`[NineManga] Skipping failed external/source candidate for cid ${candidateChapterId}`)
+        continue
       }
 
       const page = await this.getHtml(candidate)
@@ -421,6 +447,27 @@ export class NineMangaClient {
     return (
       /^https:\/\/(?:www\.)?ninemanga\.com\//.test(normalized) &&
       normalized.includes('/chapter/') &&
+      /\.html(?:[?#].*)?$/.test(normalized)
+    )
+  }
+
+  private stripWarningParamFromChapterUrl(url: string): string {
+    if (!url.includes('/chapter/')) return url
+
+    return url
+      .replace(/\?waring=1&/i, '?')
+      .replace(/&waring=1&/i, '&')
+      .replace(/\?waring=1$/i, '')
+      .replace(/&waring=1$/i, '')
+      .replace(/\?$/i, '')
+      .replace(/&$/i, '')
+  }
+
+  private isCanonicalNineMangaReaderUrl(url: string): boolean {
+    const normalized = normalizeUrl(url, BASE_URL).toLowerCase()
+
+    return (
+      /^https:\/\/(?:www\.)?ninemanga\.com\/chapter\//.test(normalized) &&
       /\.html(?:[?#].*)?$/.test(normalized)
     )
   }
