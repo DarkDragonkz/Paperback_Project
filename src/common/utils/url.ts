@@ -87,6 +87,8 @@ function normalizePathWithSuffix(pathWithSuffix: string): string {
   }
 
   const trailingSlash = path.endsWith('/') ? '/' : ''
+  if (normalizedParts.length === 0) return `/${suffix}`
+
   return `/${normalizedParts.join('/')}${trailingSlash}${suffix}`
 }
 

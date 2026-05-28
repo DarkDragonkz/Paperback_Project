@@ -146,11 +146,20 @@ export class MangaWorldParser {
     const normalized = normalizeUrl(rawUrl, this.baseUrl)
     if (!normalized) return ''
 
-    const parsed = new URL(normalized)
-    parsed.pathname = parsed.pathname.replace(/(\/read\/[^/?#]+)(?:\/\d+)?\/?$/i, '$1/1')
-    parsed.searchParams.set('style', 'list')
+    const hashIndex = normalized.indexOf('#')
+    const hash = hashIndex >= 0 ? normalized.slice(hashIndex) : ''
+    const withoutHash = hashIndex >= 0 ? normalized.slice(0, hashIndex) : normalized
+    const queryIndex = withoutHash.indexOf('?')
+    const basePath = queryIndex >= 0 ? withoutHash.slice(0, queryIndex) : withoutHash
+    const query = queryIndex >= 0 ? withoutHash.slice(queryIndex + 1) : ''
+    const readerPath = basePath.replace(/(\/read\/[^/?#]+)(?:\/\d+)?\/?$/i, '$1/1')
+    const queryParts = query
+      .split('&')
+      .filter((part) => part && !/^style=/i.test(part))
 
-    return parsed.toString()
+    queryParts.push('style=list')
+
+    return `${readerPath}?${queryParts.join('&')}${hash}`
   }
 
   toSourceManga(data: MangaWorldMangaData): SourceManga {
