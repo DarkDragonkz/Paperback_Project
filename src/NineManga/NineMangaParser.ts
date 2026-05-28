@@ -101,9 +101,10 @@ export class NineMangaParser {
 
   parseChapterPageResult(html: string, currentUrl: string): NineMangaChapterPageResult {
     const $ = cheerio.load(html)
-    const nextUrl = this.parseServerUrl($, currentUrl) || this.parseRedirectUrl(html, currentUrl)
-    if (nextUrl) return { pages: [], nextUrl }
 
+    // Important: prefer real page images over redirect/server links.
+    // Some NineManga mirror pages contain ad/intermediate anchors plus a valid all_imgs_url payload.
+    // Following the anchor first can send the reader to fake article/popup domains and lose the pages.
     const allImageUrls = this.parseAllImageUrls(html)
     if (allImageUrls.length > 0) {
       return {
@@ -126,6 +127,13 @@ export class NineMangaParser {
         })),
       }
     }
+
+    const nextUrl =
+      this.parseServerUrl($, currentUrl) ||
+      this.parseRedirectUrl(html, currentUrl) ||
+      this.parseMetaRefreshUrl($, currentUrl)
+
+    if (nextUrl) return { pages: [], nextUrl }
 
     return { pages: [] }
   }
@@ -226,15 +234,48 @@ export class NineMangaParser {
   }
 
   private parseServerUrl($: CheerioAPI, currentUrl: string): string {
-    return normalizeUrl(
-      $('section.section div.post-content-body > a[href]').first().attr('href'),
-      currentUrl
-    )
+    const candidates = $('section.section div.post-content-body > a[href]')
+      .map((_, element) => $(element).attr('href') ?? '')
+      .get()
+
+    for (const candidate of candidates) {
+      const normalized = normalizeUrl(candidate, currentUrl)
+      if (!normalized) continue
+      if (/^(?:javascript|mailto|tel):/i.test(candidate)) continue
+      if (normalized === normalizeUrl(currentUrl, this.baseUrl)) continue
+
+      return normalized
+    }
+
+    return ''
   }
 
   private parseRedirectUrl(html: string, currentUrl: string): string {
-    const redirect = html.match(/window\.location\.href\s*=\s*["'](.*?)["']/)?.[1]
-    return normalizeUrl(redirect, currentUrl)
+    const patterns = [
+      /window\.location\.href\s*=\s*["'](.*?)["']/i,
+      /location\.href\s*=\s*["'](.*?)["']/i,
+      /window\.location\.replace\(\s*["'](.*?)["']\s*\)/i,
+      /location\.replace\(\s*["'](.*?)["']\s*\)/i,
+      /window\.location\.assign\(\s*["'](.*?)["']\s*\)/i,
+      /location\.assign\(\s*["'](.*?)["']\s*\)/i,
+    ]
+
+    for (const pattern of patterns) {
+      const redirect = html.match(pattern)?.[1]
+      const normalized = normalizeUrl(this.decodeJsString(redirect ?? ''), currentUrl)
+      if (normalized) return normalized
+    }
+
+    return ''
+  }
+
+  private parseMetaRefreshUrl($: CheerioAPI, currentUrl: string): string {
+    const content = $('meta[http-equiv]').filter((_, element) => {
+      return /^refresh$/i.test($(element).attr('http-equiv') ?? '')
+    }).first().attr('content') ?? ''
+
+    const redirect = content.match(/url\s*=\s*([^;]+)/i)?.[1]?.trim().replace(/^["']|["']$/g, '')
+    return normalizeUrl(this.decodeHtmlEntities(redirect ?? ''), currentUrl)
   }
 
   private parsePageOptions($: CheerioAPI, currentUrl: string): NineMangaChapterPage[] {
@@ -275,7 +316,7 @@ export class NineMangaParser {
     } catch {
       return uniqueStrings(
         [...match[1].matchAll(/["']([^"']+)["']/g)]
-          .map((imageMatch) => this.normalizeImageUrl(imageMatch[1]))
+          .map((imageMatch) => this.normalizeImageUrl(this.decodeJsString(imageMatch[1])))
           .filter((imageUrl) => this.isValidPageImage(imageUrl))
       )
     }
@@ -345,13 +386,20 @@ export class NineMangaParser {
     if (!url || BAD_IMAGE_PATTERN.test(url)) return false
 
     const normalized = url.toLowerCase()
-    return (
-      /img\d+\.niadd\.com/i.test(normalized) ||
-      normalized.includes('nineanime.com/files/') ||
-      normalized.includes('.movietop.cc/') ||
-      normalized.includes('/comics/') ||
-      /\.(?:webp|jpe?g|png)(?:[?#].*)?$/i.test(normalized)
-    )
+
+    // Known NineManga image hosts/patterns first.
+    if (/img\d+\.niadd\.com/i.test(normalized)) return true
+    if (normalized.includes('nineanime.com/files/')) return true
+    if (normalized.includes('.movietop.cc/')) return true
+    if (normalized.includes('blogger.googleusercontent.com')) return true
+    if (normalized.includes('bp.blogspot.com') || normalized.includes('blogspot.com')) return true
+
+    // Some mirrors expose comic pages under generic /comics/ paths.
+    if (normalized.includes('/comics/')) return /\.(?:webp|jpe?g|png)(?:[?#].*)?$/i.test(normalized)
+
+    // Last fallback for all_imgs_url payloads on temporary mirror domains.
+    // Keep this only for direct image extensions and rely on BAD_IMAGE_PATTERN to reject ads/icons.
+    return /\.(?:webp|jpe?g|png)(?:[?#].*)?$/i.test(normalized)
   }
 
   private cleanChapterTitle(title: string, mangaTitle: string): string {
@@ -417,5 +465,12 @@ export class NineMangaParser {
       .replace(/&#039;/g, "'")
       .replace(/&apos;/g, "'")
       .replace(/&nbsp;/g, ' ')
+  }
+
+  private decodeJsString(value: string): string {
+    return this.decodeHtmlEntities(value)
+      .replace(/\\\//g, '/')
+      .replace(/\\u0026/g, '&')
+      .replace(/\\x26/g, '&')
   }
 }

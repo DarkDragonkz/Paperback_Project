@@ -73,7 +73,7 @@ export class NineMangaClient {
 
   async getChapterDetails(chapter: Chapter): Promise<ChapterDetails> {
     const chapterUrl = normalizeUrl(chapter.additionalInfo?.url ?? chapter.chapterId, BASE_URL)
-    const pageRefs = await this.resolveChapterPageRefs(chapterUrl, BASE_URL, 0)
+    const pageRefs = await this.resolveChapterPageRefs(chapterUrl, BASE_URL, 0, new Set<string>())
     const pages: string[] = []
 
     for (const pageRef of pageRefs) {
@@ -171,16 +171,19 @@ export class NineMangaClient {
   private async resolveChapterPageRefs(
     url: string,
     referer: string,
-    depth: number
+    depth: number,
+    visited: Set<string>
   ): Promise<NineMangaChapterPage[]> {
-    if (depth > MAX_READER_REDIRECTS) return []
+    const normalizedUrl = normalizeUrl(url, BASE_URL)
+    if (!normalizedUrl || depth > MAX_READER_REDIRECTS || visited.has(normalizedUrl)) return []
+    visited.add(normalizedUrl)
 
-    const response = await this.getHtml(url, referer)
+    const response = await this.getHtml(normalizedUrl, referer)
     const result = this.parser.parseChapterPageResult(response.body, response.url)
     if (result.pages.length > 0) return result.pages
 
     if (result.nextUrl) {
-      return this.resolveChapterPageRefs(result.nextUrl, response.url, depth + 1)
+      return this.resolveChapterPageRefs(result.nextUrl, response.url, depth + 1, visited)
     }
 
     return []
