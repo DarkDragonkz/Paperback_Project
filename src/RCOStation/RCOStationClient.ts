@@ -39,6 +39,12 @@ interface CacheEntry<T> {
 
 const SECTIONS: RCOStationListingConfig[] = [
   {
+    id: 'featured',
+    title: 'Featured Comics',
+    heading: 'New comic',
+    includeChapterUpdates: false,
+  },
+  {
     id: 'latest',
     title: 'Latest update',
     heading: 'Latest update',
@@ -96,9 +102,7 @@ export class RCOStationClient {
       id: section.id,
       title: section.title,
       subtitle: this.sectionSubtitle(section.id),
-      type: section.includeChapterUpdates
-        ? DiscoverSectionType.chapterUpdates
-        : DiscoverSectionType.prominentCarousel,
+      type: this.sectionType(section.id),
     }))
   }
 
@@ -231,6 +235,17 @@ export class RCOStationClient {
     config: RCOStationListingConfig,
     item: RCOStationListingItem
   ): DiscoverSectionItem {
+    if (config.id === 'featured') {
+      return {
+        type: 'featuredCarouselItem',
+        mangaId: item.mangaId,
+        imageUrl: item.imageUrl,
+        title: item.title,
+        supertitle: item.subtitle,
+        contentRating: ContentRating.MATURE,
+      }
+    }
+
     if (config.includeChapterUpdates && item.latestChapterId) {
       return {
         type: 'chapterUpdatesCarouselItem',
@@ -253,8 +268,17 @@ export class RCOStationClient {
     }
   }
 
+  private sectionType(sectionId: string): DiscoverSectionType {
+    if (sectionId === 'featured') return DiscoverSectionType.featured
+    if (sectionId === 'latest') return DiscoverSectionType.chapterUpdates
+
+    return DiscoverSectionType.prominentCarousel
+  }
+
   private sectionSubtitle(sectionId: string): string {
     switch (sectionId) {
+      case 'featured':
+        return 'New comics with cover art'
       case 'latest':
         return 'Fresh issue releases'
       case 'new':

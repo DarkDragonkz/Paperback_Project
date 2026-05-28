@@ -1,6 +1,6 @@
 import type { Chapter } from '@paperback/types'
 
-export type MangaWorldSectionId = 'latest' | 'popular'
+export type MangaWorldSectionId = 'featured' | 'latest' | 'popular'
 
 export interface MangaWorldListingConfig {
   id: MangaWorldSectionId

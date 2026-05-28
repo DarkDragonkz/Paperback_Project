@@ -1,6 +1,6 @@
 import type { Chapter } from '@paperback/types'
 
-export type RCOStationSectionId = 'latest' | 'new' | 'popular'
+export type RCOStationSectionId = 'featured' | 'latest' | 'new' | 'popular'
 
 export interface RCOStationListingConfig {
   id: RCOStationSectionId

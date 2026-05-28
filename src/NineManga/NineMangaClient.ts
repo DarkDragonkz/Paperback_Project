@@ -40,6 +40,12 @@ interface CacheEntry<T> {
 
 const SECTIONS: NineMangaListingConfig[] = [
   {
+    id: 'featured',
+    title: 'Featured Manga',
+    path: '/category/index_1.html',
+    includeChapterUpdates: false,
+  },
+  {
     id: 'latest',
     title: 'Latest Updates',
     path: '/list/New-Update/',
@@ -102,10 +108,8 @@ export class NineMangaClient {
     return SECTIONS.map((section) => ({
       id: section.id,
       title: section.title,
-      subtitle: section.id === 'latest' ? 'Latest chapter updates' : 'Browse the main catalog',
-      type: section.includeChapterUpdates
-        ? DiscoverSectionType.chapterUpdates
-        : DiscoverSectionType.prominentCarousel,
+      subtitle: this.sectionSubtitle(section.id),
+      type: this.sectionType(section.id),
     }))
   }
 
@@ -197,6 +201,17 @@ export class NineMangaClient {
   ): DiscoverSectionItem {
     const contentRating = this.parser.contentRatingForGenres(item.genres)
 
+    if (config.id === 'featured') {
+      return {
+        type: 'featuredCarouselItem',
+        mangaId: item.mangaId,
+        imageUrl: item.imageUrl,
+        title: item.title,
+        supertitle: item.latestChapterTitle,
+        contentRating,
+      }
+    }
+
     if (config.includeChapterUpdates && item.latestChapterId) {
       return {
         type: 'chapterUpdatesCarouselItem',
@@ -216,6 +231,26 @@ export class NineMangaClient {
       title: item.title,
       subtitle: item.genres.join(', ') || item.latestChapterTitle,
       contentRating: contentRating || ContentRating.EVERYONE,
+    }
+  }
+
+  private sectionType(sectionId: string): DiscoverSectionType {
+    if (sectionId === 'featured') return DiscoverSectionType.featured
+    if (sectionId === 'latest') return DiscoverSectionType.chapterUpdates
+
+    return DiscoverSectionType.prominentCarousel
+  }
+
+  private sectionSubtitle(sectionId: string): string {
+    switch (sectionId) {
+      case 'featured':
+        return 'Popular catalog picks'
+      case 'latest':
+        return 'Latest chapter updates'
+      case 'popular':
+        return 'Browse the main catalog'
+      default:
+        return ''
     }
   }
 

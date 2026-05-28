@@ -34,6 +34,11 @@ const MAX_CACHE_ENTRIES = 30
 
 const SECTIONS: ReadAllComicsListingConfig[] = [
   {
+    id: 'featured',
+    title: 'Featured Series',
+    includeChapterUpdates: false,
+  },
+  {
     id: 'latest',
     title: 'Latest Updates',
     includeChapterUpdates: true,
@@ -104,10 +109,8 @@ export class ReadAllComicsClient {
     return SECTIONS.map((section) => ({
       id: section.id,
       title: section.title,
-      subtitle: section.id === 'latest' ? 'Newest comic issues' : 'Series with fresh activity',
-      type: section.includeChapterUpdates
-        ? DiscoverSectionType.chapterUpdates
-        : DiscoverSectionType.prominentCarousel,
+      subtitle: this.sectionSubtitle(section.id),
+      type: this.sectionType(section.id),
     }))
   }
 
@@ -204,6 +207,17 @@ export class ReadAllComicsClient {
     config: ReadAllComicsListingConfig,
     item: ReadAllComicsListingItem
   ): DiscoverSectionItem {
+    if (config.id === 'featured') {
+      return {
+        type: 'featuredCarouselItem',
+        mangaId: item.mangaId,
+        imageUrl: item.imageUrl,
+        title: item.title,
+        supertitle: this.parser.subtitleForItem(item),
+        contentRating: ContentRating.MATURE,
+      }
+    }
+
     if (config.includeChapterUpdates && item.latestChapterId) {
       return {
         type: 'chapterUpdatesCarouselItem',
@@ -223,6 +237,26 @@ export class ReadAllComicsClient {
       title: item.title,
       subtitle: this.parser.subtitleForItem(item),
       contentRating: ContentRating.MATURE,
+    }
+  }
+
+  private sectionType(sectionId: string): DiscoverSectionType {
+    if (sectionId === 'featured') return DiscoverSectionType.featured
+    if (sectionId === 'latest') return DiscoverSectionType.chapterUpdates
+
+    return DiscoverSectionType.prominentCarousel
+  }
+
+  private sectionSubtitle(sectionId: string): string {
+    switch (sectionId) {
+      case 'featured':
+        return 'Cover picks from the latest page'
+      case 'latest':
+        return 'Newest comic issues'
+      case 'catalog':
+        return 'Series with fresh activity'
+      default:
+        return ''
     }
   }
 

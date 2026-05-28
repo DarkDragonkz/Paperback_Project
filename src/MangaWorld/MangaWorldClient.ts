@@ -37,6 +37,12 @@ interface CacheEntry<T> {
 
 const SECTIONS: MangaWorldListingConfig[] = [
   {
+    id: 'featured',
+    title: 'In evidenza',
+    path: '/',
+    includeChapterUpdates: false,
+  },
+  {
     id: 'latest',
     title: 'Ultimi aggiornamenti',
     path: '/',
@@ -90,10 +96,8 @@ export class MangaWorldClient {
     return SECTIONS.map((section) => ({
       id: section.id,
       title: section.title,
-      subtitle: section.id === 'latest' ? 'Capitoli appena pubblicati' : 'Serie piu lette sul sito',
-      type: section.includeChapterUpdates
-        ? DiscoverSectionType.chapterUpdates
-        : DiscoverSectionType.prominentCarousel,
+      subtitle: this.sectionSubtitle(section.id),
+      type: this.sectionType(section.id),
     }))
   }
 
@@ -164,6 +168,17 @@ export class MangaWorldClient {
   ): DiscoverSectionItem {
     const contentRating = this.parser.contentRatingForGenres(item.genres)
 
+    if (config.id === 'featured') {
+      return {
+        type: 'featuredCarouselItem',
+        mangaId: item.mangaId,
+        imageUrl: item.imageUrl,
+        title: item.title,
+        supertitle: item.latestChapterTitle || item.subtitle,
+        contentRating,
+      }
+    }
+
     if (config.includeChapterUpdates && item.latestChapterId) {
       return {
         type: 'chapterUpdatesCarouselItem',
@@ -183,6 +198,26 @@ export class MangaWorldClient {
       title: item.title,
       subtitle: item.subtitle,
       contentRating: contentRating || ContentRating.EVERYONE,
+    }
+  }
+
+  private sectionType(sectionId: string): DiscoverSectionType {
+    if (sectionId === 'featured') return DiscoverSectionType.featured
+    if (sectionId === 'latest') return DiscoverSectionType.chapterUpdates
+
+    return DiscoverSectionType.prominentCarousel
+  }
+
+  private sectionSubtitle(sectionId: string): string {
+    switch (sectionId) {
+      case 'featured':
+        return 'Scelte dalla homepage'
+      case 'latest':
+        return 'Capitoli appena pubblicati'
+      case 'popular':
+        return 'Serie piu lette sul sito'
+      default:
+        return ''
     }
   }
 

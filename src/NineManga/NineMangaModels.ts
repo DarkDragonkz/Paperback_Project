@@ -1,6 +1,6 @@
 import type { Chapter } from '@paperback/types'
 
-export type NineMangaSectionId = 'latest' | 'popular'
+export type NineMangaSectionId = 'featured' | 'latest' | 'popular'
 
 export interface NineMangaListingConfig {
   id: NineMangaSectionId

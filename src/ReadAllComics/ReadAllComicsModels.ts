@@ -1,6 +1,6 @@
 import type { Chapter } from '@paperback/types'
 
-export type ReadAllComicsSectionId = 'latest' | 'catalog'
+export type ReadAllComicsSectionId = 'featured' | 'latest' | 'catalog'
 
 export interface ReadAllComicsListingConfig {
   id: ReadAllComicsSectionId
