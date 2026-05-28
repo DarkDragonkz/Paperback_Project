@@ -30,9 +30,18 @@ export class RCOStationParser {
 
     root.find('.section.group.list').each((_, element) => {
       const item = $(element)
-      const anchor = item.find('a[href]').first()
+      const anchor = item
+        .find('.sub-col-1 a[href], .col.info a[href*="/Comic/"], a[href*="/Comic/"]')
+        .filter((__, candidate) => Boolean(normalizeUrl($(candidate).attr('href'), currentUrl)))
+        .first()
       const rawUrl = normalizeUrl(anchor.attr('href'), currentUrl)
-      const title = cleanText(anchor.text()) || cleanText(anchor.attr('title'))
+      const image = item.find('img').first()
+      const title =
+        cleanText(anchor.text()) ||
+        cleanText(anchor.attr('title')) ||
+        cleanText(image.attr('title')) ||
+        cleanText(image.attr('alt')) ||
+        this.titleFromComicUrl(rawUrl)
 
       if (!rawUrl || !title) return
 
@@ -41,7 +50,8 @@ export class RCOStationParser {
       if (!this.isValidComicUrl(comicUrl)) return
 
       const date = cleanText(item.find('.sub-col-2, .col-2').first().text())
-      const issueTitle = issueUrl ? title : ''
+      const listedIssue = cleanText(item.find('.col.info p').eq(1).text())
+      const issueTitle = issueUrl ? title : listedIssue
       const displayTitle = this.stripIssueSuffix(title, comicUrl)
       const subtitle = [
         issueTitle || (displayTitle !== title ? title : ''),
@@ -51,7 +61,7 @@ export class RCOStationParser {
       items.push({
         mangaId: pathIdFromUrl(comicUrl, this.baseUrl),
         title: displayTitle,
-        imageUrl: normalizeUrl(this.getImageUrl(item.find('img').first(), currentUrl), currentUrl),
+        imageUrl: normalizeUrl(this.getImageUrl(image, currentUrl), currentUrl),
         url: comicUrl,
         subtitle: subtitle || undefined,
         latestChapterId: issueUrl ? pathIdFromUrl(issueUrl, this.baseUrl) : undefined,
@@ -266,6 +276,7 @@ export class RCOStationParser {
         sourceManga,
         langCode: 'en',
         chapNum: this.parseIssueNumber(title),
+        volume: this.parseIssueVolume(title),
         title,
         publishDate: this.parseDate(cleanText(item.find('.col-2, time').first().text())),
         sortingIndex: index,
@@ -490,6 +501,11 @@ export class RCOStationParser {
   private parseIssueNumber(value: string): number {
     const issue = value.match(/Issue\s*#?\s*(\d+(?:\.\d+)?)/i)?.[1] || value.match(/#\s*(\d+(?:\.\d+)?)/)?.[1]
     return issue ? Number(issue) : 0
+  }
+
+  private parseIssueVolume(value: string): number {
+    const volume = value.match(/\bVol(?:ume)?\.?\s*(\d+(?:\.\d+)?)/i)?.[1]
+    return volume ? Number(volume) : 1
   }
 
   private normalizeStatus(value: string | undefined): string {
