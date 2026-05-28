@@ -1,5 +1,5 @@
 {
-  "buildTime": "2026-05-28T21:00:19.742Z",
+  "buildTime": "2026-05-28T21:14:13.260Z",
   "builtWith": {
     "toolchain": "1.0.0-alpha.86",
     "types": "1.0.0-alpha.86"
@@ -38,7 +38,7 @@
       "id": "NineManga"
     },
     {
-      "version": "1.0.0",
+      "version": "1.0.1",
       "name": "ReadAllComics",
       "icon": "icon.png",
       "description": "ReadAllComics source using normal mobile browser requests for catalogue, search, chapters, and reader pages.",
