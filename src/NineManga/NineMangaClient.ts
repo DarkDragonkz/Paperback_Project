@@ -145,9 +145,11 @@ export class NineMangaClient {
 
     if (pageRefs.length > 0) return pageRefs
 
-    const isCanonicalReader = this.isCanonicalNineMangaReaderUrl(firstPage.url)
+    const requestedCanonicalReader = this.isCanonicalNineMangaReaderUrl(chapterUrl)
+    const responseCanonicalReader = this.isCanonicalNineMangaReaderUrl(firstPage.url)
+    const shouldAvoidExternalSource = requestedCanonicalReader || responseCanonicalReader
 
-    if (!isCanonicalReader) {
+    if (!shouldAvoidExternalSource) {
       pageRefs = await this.resolveSourceSelection(
         chapter,
         firstPage.body,
@@ -157,7 +159,9 @@ export class NineMangaClient {
       )
       if (pageRefs.length > 0) return pageRefs
     } else {
-      console.log(`[NineManga] Skipping external source selector on canonical NineManga reader page: ${firstPage.url}`)
+      console.log(
+        `[NineManga] Skipping external source selector because requested reader was canonical: requested=${chapterUrl}, response=${firstPage.url}`
+      )
     }
 
     const candidates = this.chapterReaderCandidates(chapterUrl).filter(
@@ -179,7 +183,11 @@ export class NineMangaClient {
       pageRefs = this.parser.parseChapterPage(page.body, page.url)
       if (pageRefs.length > 0) return pageRefs
 
-      if (!this.isCanonicalNineMangaReaderUrl(page.url)) {
+      const requestedCandidateCanonical = this.isCanonicalNineMangaReaderUrl(candidate)
+      const responseCandidateCanonical = this.isCanonicalNineMangaReaderUrl(page.url)
+      const shouldAvoidCandidateExternalSource = requestedCandidateCanonical || responseCandidateCanonical
+
+      if (!shouldAvoidCandidateExternalSource) {
         pageRefs = await this.resolveSourceSelection(
           chapter,
           page.body,
@@ -189,7 +197,9 @@ export class NineMangaClient {
         )
         if (pageRefs.length > 0) return pageRefs
       } else {
-        console.log(`[NineManga] Skipping external source selector on canonical fallback reader page: ${page.url}`)
+        console.log(
+          `[NineManga] Skipping external source selector on canonical fallback reader request: requested=${candidate}, response=${page.url}`
+        )
       }
 
       console.log(`[NineManga] No reader pages found at ${candidate}; trying fallback`)
@@ -544,21 +554,26 @@ export class NineMangaClient {
     const chapterId = chapterIdOverride || this.chapterIdFromUrl(chapter.additionalInfo?.url ?? chapter.chapterId)
     if (!this.setCookie || !bookId || !chapterId) return
 
-    this.setCookie({
-      name: `lrgarden_visit_check_${bookId}`,
-      value: chapterId,
-      domain: 'ninemanga.com',
-      path: '/',
-      expires: new Date(Date.now() + 24 * 60 * 60 * 1000),
-    })
-    this.setCookie({
-      name: 'ninemanga_book_visited',
-      value: '1',
-      domain: 'ninemanga.com',
-      path: '/',
-      expires: new Date(Date.now() + 24 * 60 * 60 * 1000),
-    })
-    console.log(`[NineManga] Set reader unlock cookie for book ${bookId}, chapter ${chapterId}`)
+    const expires = new Date(Date.now() + 24 * 60 * 60 * 1000)
+    const domains = ['ninemanga.com', 'www.ninemanga.com', '.ninemanga.com']
+
+    for (const domain of domains) {
+      this.setCookie({
+        name: `lrgarden_visit_check_${bookId}`,
+        value: chapterId,
+        domain,
+        path: '/',
+        expires,
+      })
+      this.setCookie({
+        name: 'ninemanga_book_visited',
+        value: '1',
+        domain,
+        path: '/',
+        expires,
+      })
+      console.log(`[NineManga] Set reader unlock cookies for book ${bookId}, chapter ${chapterId}, domain ${domain}`)
+    }
   }
 
   private numericChapterId(value: string): string {
