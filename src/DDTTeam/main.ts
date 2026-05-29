@@ -2,11 +2,12 @@ import { createPizzaReaderExtension } from '../common/pizzareader/PizzaReaderExt
 
 const SOURCE_VERSION = '1.0.0'
 
-export const LupiTeam = createPizzaReaderExtension(
+export const DDTTeam = createPizzaReaderExtension(
   {
-    sourceName: 'LupiTeam',
-    baseUrl: 'https://lupiteam.net',
+    sourceName: 'DDT Team',
+    baseUrl: 'https://ddt.hastateam.com',
     language: 'it',
+    requestDelayMs: 1000,
   },
   SOURCE_VERSION
 )

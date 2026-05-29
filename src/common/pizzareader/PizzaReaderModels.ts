@@ -4,6 +4,7 @@ export interface PizzaReaderConfig {
   sourceName: string
   baseUrl: string
   language: string
+  requestDelayMs?: number
 }
 
 export type PizzaReaderSectionId = 'popular' | 'latest'

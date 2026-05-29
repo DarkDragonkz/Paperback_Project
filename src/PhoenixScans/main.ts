@@ -2,10 +2,10 @@ import { createPizzaReaderExtension } from '../common/pizzareader/PizzaReaderExt
 
 const SOURCE_VERSION = '1.0.0'
 
-export const LupiTeam = createPizzaReaderExtension(
+export const PhoenixScans = createPizzaReaderExtension(
   {
-    sourceName: 'LupiTeam',
-    baseUrl: 'https://lupiteam.net',
+    sourceName: 'Phoenix Scans',
+    baseUrl: 'https://www.phoenixscans.com',
     language: 'it',
   },
   SOURCE_VERSION

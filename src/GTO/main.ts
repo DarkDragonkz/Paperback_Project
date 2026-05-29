@@ -2,10 +2,10 @@ import { createPizzaReaderExtension } from '../common/pizzareader/PizzaReaderExt
 
 const SOURCE_VERSION = '1.0.0'
 
-export const LupiTeam = createPizzaReaderExtension(
+export const GTO = createPizzaReaderExtension(
   {
-    sourceName: 'LupiTeam',
-    baseUrl: 'https://lupiteam.net',
+    sourceName: 'GTO The Great Site',
+    baseUrl: 'https://reader.gtothegreatsite.net',
     language: 'it',
   },
   SOURCE_VERSION

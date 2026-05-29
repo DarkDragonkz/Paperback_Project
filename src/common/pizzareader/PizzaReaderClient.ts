@@ -50,6 +50,8 @@ export class PizzaReaderClient {
   private readonly apiCache = new Map<string, CacheEntry<unknown>>()
   private readonly apiRequests = new Map<string, Promise<unknown>>()
   private readonly mangaCache = new Map<string, CacheEntry<PizzaReaderComic>>()
+  private lastRequestAt = 0
+  private rateLimitQueue: Promise<void> = Promise.resolve()
 
   constructor(private readonly config: PizzaReaderConfig) {
     this.parser = new PizzaReaderParser(config)
@@ -181,7 +183,7 @@ export class PizzaReaderClient {
     const pending = this.apiRequests.get(url) as Promise<T> | undefined
     if (pending) return pending
 
-    const request = getJson<T>(url, await this.headers())
+    const request = this.withRateLimit(async () => getJson<T>(url, await this.headers()))
       .then((result) => {
         this.rememberCache(this.apiCache, url, result, API_CACHE_TTL_MS)
         return result
@@ -192,6 +194,38 @@ export class PizzaReaderClient {
 
     this.apiRequests.set(url, request)
     return request
+  }
+
+  private async withRateLimit<T>(operation: () => Promise<T>): Promise<T> {
+    const previous = this.rateLimitQueue
+    let release: () => void = () => {}
+
+    this.rateLimitQueue = new Promise<void>((resolve) => {
+      release = resolve
+    })
+
+    await previous
+
+    try {
+      await this.waitForRateLimit()
+      return await operation()
+    } finally {
+      release()
+    }
+  }
+
+  private async waitForRateLimit(): Promise<void> {
+    const delayMs = this.config.requestDelayMs ?? 0
+    if (delayMs <= 0) return
+
+    const elapsed = Date.now() - this.lastRequestAt
+    if (elapsed < delayMs) await this.sleep(delayMs - elapsed)
+
+    this.lastRequestAt = Date.now()
+  }
+
+  private async sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms))
   }
 
   private async headers(): Promise<HeaderMap> {
