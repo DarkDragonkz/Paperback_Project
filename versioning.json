@@ -1,5 +1,5 @@
 {
-  "buildTime": "2026-05-29T15:59:18.885Z",
+  "buildTime": "2026-05-29T16:08:12.321Z",
   "builtWith": {
     "toolchain": "1.0.0-alpha.86",
     "types": "1.0.0-alpha.86"
@@ -9,6 +9,87 @@
     "description": "A modular Paperback iOS 0.9 extension repository, starting with NineManga."
   },
   "sources": [
+    {
+      "version": "1.0.0",
+      "name": "DDT Team",
+      "icon": "icon.png",
+      "description": "DDT Team source using the PizzaReader JSON API for catalogue, search, chapters, and reader pages.",
+      "contentRating": "MATURE",
+      "developers": [
+        {
+          "name": "DarkDragonkz",
+          "github": "DarkDragonkz"
+        }
+      ],
+      "language": "it",
+      "badges": [
+        {
+          "label": "PizzaReader",
+          "textColor": "#ffffff",
+          "backgroundColor": "#ef4444"
+        }
+      ],
+      "capabilities": [
+        1,
+        64,
+        4
+      ],
+      "id": "DDTTeam"
+    },
+    {
+      "version": "1.0.0",
+      "name": "GTO The Great Site",
+      "icon": "icon.png",
+      "description": "GTO The Great Site source using the PizzaReader JSON API for catalogue, search, chapters, and reader pages.",
+      "contentRating": "MATURE",
+      "developers": [
+        {
+          "name": "DarkDragonkz",
+          "github": "DarkDragonkz"
+        }
+      ],
+      "language": "it",
+      "badges": [
+        {
+          "label": "PizzaReader",
+          "textColor": "#ffffff",
+          "backgroundColor": "#ef4444"
+        }
+      ],
+      "capabilities": [
+        1,
+        64,
+        4
+      ],
+      "id": "GTO"
+    },
+    {
+      "version": "1.0.0",
+      "name": "Hasta Team",
+      "icon": "icon.png",
+      "description": "Hasta Team source using the PizzaReader JSON API for catalogue, search, chapters, and reader pages.",
+      "contentRating": "MATURE",
+      "developers": [
+        {
+          "name": "DarkDragonkz",
+          "github": "DarkDragonkz"
+        }
+      ],
+      "language": "it",
+      "badges": [
+        {
+          "label": "PizzaReader",
+          "textColor": "#ffffff",
+          "backgroundColor": "#ef4444"
+        }
+      ],
+      "capabilities": [
+        1,
+        64,
+        4
+      ],
+      "id": "HastaTeam"
+    },
     {
       "version": "1.0.0",
       "name": "LupiTeam",
@@ -93,6 +174,33 @@
     },
     {
       "version": "1.0.0",
+      "name": "Phoenix Scans",
+      "icon": "icon.png",
+      "description": "Phoenix Scans source using the PizzaReader JSON API for catalogue, search, chapters, and reader pages.",
+      "contentRating": "MATURE",
+      "developers": [
+        {
+          "name": "DarkDragonkz",
+          "github": "DarkDragonkz"
+        }
+      ],
+      "language": "it",
+      "badges": [
+        {
+          "label": "PizzaReader",
+          "textColor": "#ffffff",
+          "backgroundColor": "#ef4444"
+        }
+      ],
+      "capabilities": [
+        1,
+        64,
+        4
+      ],
+      "id": "PhoenixScans"
+    },
+    {
+      "version": "1.0.0",
       "name": "RCOStation",
       "icon": "icon.png",
       "description": "ReadComicOnline / RCOStation source using normal mobile browser requests for comics, issues, search, and reader pages.",
@@ -144,6 +252,33 @@
         4
       ],
       "id": "ReadAllComics"
+    },
+    {
+      "version": "1.0.0",
+      "name": "TuttoAnimeManga",
+      "icon": "icon.png",
+      "description": "TuttoAnimeManga source using the PizzaReader JSON API for catalogue, search, chapters, and reader pages.",
+      "contentRating": "MATURE",
+      "developers": [
+        {
+          "name": "DarkDragonkz",
+          "github": "DarkDragonkz"
+        }
+      ],
+      "language": "it",
+      "badges": [
+        {
+          "label": "PizzaReader",
+          "textColor": "#ffffff",
+          "backgroundColor": "#ef4444"
+        }
+      ],
+      "capabilities": [
+        1,
+        64,
+        4
+      ],
+      "id": "TuttoAnimeManga"
     }
   ]
 }
