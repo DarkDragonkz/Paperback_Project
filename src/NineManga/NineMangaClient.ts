@@ -99,7 +99,10 @@ export class NineMangaClient {
 
   async getChapterDetails(chapter: Chapter): Promise<ChapterDetails> {
     const preparedChapter = await this.prepareReaderChapter(chapter)
-    const chapterUrl = this.resolveReaderChapterUrl(preparedChapter)
+    this.setReaderUnlockCookie(preparedChapter)
+
+    const rawChapterUrl = this.resolveReaderChapterUrl(preparedChapter)
+    const chapterUrl = this.stripWarningParamFromChapterUrl(rawChapterUrl)
     if (!chapterUrl) throw new Error('Invalid NineManga chapter URL')
 
     const pageRefs = await this.resolveChapterPageRefs(preparedChapter, chapterUrl)
@@ -118,6 +121,7 @@ export class NineMangaClient {
 
     const uniquePages = uniqueStrings(pages)
     console.log(`[NineManga] Reader images returned: ${uniquePages.length}`)
+    if (uniquePages.length === 0) throw new Error('No readable pages found for this NineManga chapter')
 
     return {
       id: preparedChapter.chapterId,
@@ -138,18 +142,9 @@ export class NineMangaClient {
     const firstPage = await this.getHtml(chapterUrl)
     let pageRefs = this.parser.parseChapterPage(firstPage.body, firstPage.url)
 
-    console.log(`[NineManga] Reader first page URL: ${firstPage.url}`)
-    console.log(`[NineManga] Reader first page status: ${firstPage.status}`)
-    console.log(`[NineManga] Reader first page HTML length: ${firstPage.body.length}`)
-    console.log(`[NineManga] Reader first page has manga_pic: ${firstPage.body.includes('manga_pic')}`)
-    console.log(`[NineManga] Reader first page has sl-page: ${firstPage.body.includes('sl-page')}`)
-    console.log(`[NineManga] Reader first page has all_imgs_url: ${firstPage.body.includes('all_imgs_url')}`)
-    console.log(`[NineManga] Reader first page has go/jump: ${firstPage.body.includes('/go/jump/')}`)
-    console.log(`[NineManga] Reader first page has go/ennm: ${firstPage.body.includes('/go/ennm/')}`)
-    console.log(`[NineManga] Reader first page has movietop: ${firstPage.body.includes('.movietop.cc/')}`)
-    console.log(`[NineManga] Reader first page has /comics/: ${firstPage.body.includes('/comics/')}`)
-    console.log(`[NineManga] Reader parseChapterPage result count: ${pageRefs.length}`)
-    console.log(`[NineManga] Reader first page preview: ${firstPage.body.slice(0, 800)}`)
+    console.log(
+      `[NineManga] Reader first page ${firstPage.status} parsed ${pageRefs.length} page refs`
+    )
 
     if (pageRefs.length > 0) return pageRefs
 
@@ -494,20 +489,13 @@ export class NineMangaClient {
   private resolveReaderChapterUrl(chapter: Chapter): string {
     const rawStoredUrl = chapter.additionalInfo?.url ?? chapter.chapterId
     const storedUrl = normalizeUrl(rawStoredUrl, BASE_URL)
-    const chapterId = this.chapterIdFromUrl(rawStoredUrl)
-    const mangaSlug = this.mangaSlugFromMangaId(chapter.sourceManga.mangaId)
     const canonicalUrl = this.canonicalNineMangaChapterUrl(chapter)
     const shouldUseCanonical = Boolean(canonicalUrl) && !this.isNineMangaChapterUrl(storedUrl)
     const finalUrl = shouldUseCanonical ? canonicalUrl : storedUrl || canonicalUrl
 
-    console.log(`[NineManga] Reader stored URL: ${storedUrl}`)
-    console.log(`[NineManga] Reader extracted chapter id: ${chapterId}`)
-    console.log(`[NineManga] Reader extracted manga slug: ${mangaSlug}`)
-    console.log(`[NineManga] Reader canonical URL: ${canonicalUrl}`)
     if (shouldUseCanonical) {
       console.log(`[NineManga] Reader using canonical URL instead of stored URL: ${canonicalUrl}`)
     }
-    console.log(`[NineManga] Reader final URL: ${finalUrl}`)
 
     return finalUrl
   }

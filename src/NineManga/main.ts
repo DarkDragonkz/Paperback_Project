@@ -47,6 +47,8 @@ class NineMangaExtension
   private readonly client = new NineMangaClient((cookie) => this.cookieStorage.setCookie(cookie))
   private readonly imageInterceptor = new ImageRequestInterceptor('ninemanga-image-headers', [
     { pattern: /^https?:\/\/[^/?#]*niadd\.com\//i, headers: IMAGE_HEADERS },
+    { pattern: /^https?:\/\/[^/?#]*movietop\.cc\//i, headers: IMAGE_HEADERS },
+    { pattern: /^https?:\/\/[^/?#]*nineanime\.com\/files\//i, headers: IMAGE_HEADERS },
     { pattern: /^https?:\/\/[^/?#]*(?:blogspot\.com|blogger\.googleusercontent\.com|googleusercontent\.com)\//i, headers: IMAGE_HEADERS },
   ])
 

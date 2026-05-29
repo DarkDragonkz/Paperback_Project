@@ -1,6 +1,6 @@
 # Paperback_Project
 
-Repository multi-source per estensioni Paperback iOS 0.9. NineManga e la prima sorgente inclusa, ma la struttura resta pronta per aggiungere altri siti senza spostare logica specifica nel livello globale.
+Repository multi-source per estensioni Paperback iOS 0.9. Il progetto contiene source dedicate e source basate su helper comuni per siti Manga/Comic/Scanlation.
 
 ## Struttura
 
@@ -11,16 +11,32 @@ src/
     parsing/
     models/
     utils/
+    foolslide/
+    pizzareader/
+  AnimeGDRClub/
+  DigitalTeam/
+  MangaWorld/
   NineManga/
-    main.ts
-    pbconfig.ts
-    NineMangaClient.ts
-    NineMangaParser.ts
-    NineMangaModels.ts
-    static/icon.png
+  RCOStation/
+  ReadAllComics/
+  ZeurelScan/
+  DDTTeam/
+  GTO/
+  HastaTeam/
+  JuinJutsuTeamReader/
+  LupiTeam/
+  NIFTeam/
+  PhoenixScans/
+  TuttoAnimeManga/
 ```
 
-`src/common/` contiene solo helper riutilizzabili: richieste HTTP, header, normalizzazione URL, deduplica e parsing HTML sicuro. Endpoint, selettori e regole come `?waring=1` restano dentro `src/NineManga/`.
+`src/common/` contiene helper riutilizzabili: richieste HTTP, header, normalizzazione URL, deduplica, parsing HTML sicuro e due basi condivise (`foolslide`, `pizzareader`). Endpoint, selettori e workaround specifici restano nelle cartelle delle singole source.
+
+## Source incluse
+
+- Source dedicate: AnimeGDRClub, DigitalTeam, MangaWorld, NineManga, RCOStation, ReadAllComics, ZeurelScan.
+- Source PizzaReader: DDTTeam, GTO, HastaTeam, LupiTeam, PhoenixScans, TuttoAnimeManga.
+- Source FoolSlide: JuinJutsuTeamReader, NIFTeam.
 
 L'analisi dello ZIP usato per costruire la prima sorgente e in `docs/ninemanga-zip-analysis.md`.
 

@@ -14,7 +14,6 @@ import {
 
 import { defaultBrowserHeaders, mergeHeaders, type HeaderMap } from '../common/http/headers'
 import { getText, type TextResponse } from '../common/http/request'
-import { uniqueStrings } from '../common/utils/array'
 import { normalizeUrl, pathIdFromUrl } from '../common/utils/url'
 import type {
   ZeurelScanListingConfig,
