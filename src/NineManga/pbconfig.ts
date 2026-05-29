@@ -1,11 +1,11 @@
 import { ContentRating, SourceIntents, type ExtensionInfo } from '@paperback/types'
 
 const sourceInfo = {
-  version: '1.1.0',
+  version: '1.0.31',
   name: 'NineManga',
   icon: 'icon.png',
   description:
-    'NineManga source using normal HTTP requests and Keiyoushi-compatible HTML parsing.',
+    'NineManga source for a modular Paperback iOS 0.9 extension repository.',
   contentRating: ContentRating.ADULT,
   developers: [
     {
@@ -25,6 +25,7 @@ const sourceInfo = {
     SourceIntents.CHAPTER_PROVIDING,
     SourceIntents.SEARCH_RESULT_PROVIDING,
     SourceIntents.DISCOVER_SECTION_PROVIDING,
+    SourceIntents.CLOUDFLARE_BYPASS_PROVIDING,
   ],
 } satisfies ExtensionInfo
 
