@@ -213,7 +213,8 @@ export class NineMangaParser {
 
   parseImage(html: string, currentUrl = this.baseUrl): string | undefined {
     const $ = cheerio.load(html)
-    return this.parseAllImageUrls(html, currentUrl)[0] || this.parseReaderImages($, currentUrl)[0] || undefined
+    void currentUrl
+    return this.parseAllImageUrls(html)[0] || this.parseReaderImages($)[0] || undefined
   }
 
   toSourceManga(data: NineMangaMangaData): SourceManga {

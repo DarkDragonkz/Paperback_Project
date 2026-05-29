@@ -7,7 +7,6 @@ export interface FoolSlideConfig {
   urlModifier?: string
   language: string
   supportsLatest?: boolean
-  popularUsesLatest?: boolean
   directorySelector?: string
   chapterListSelector?: string
   requestDelayMs?: number

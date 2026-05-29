@@ -8,7 +8,6 @@ export const JuinJutsuTeamReader = createFoolSlideExtension(
     sourceName: 'Juin Jutsu Team Reader',
     baseUrl: 'https://www.juinjutsureader.ovh',
     language: 'it',
-    supportsLatest: false,
     directorySelector: '.series_element',
     chapterListSelector: 'div.group_comic div.element',
   },

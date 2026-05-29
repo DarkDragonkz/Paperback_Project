@@ -98,10 +98,11 @@ export class NineMangaClient {
   }
 
   async getChapterDetails(chapter: Chapter): Promise<ChapterDetails> {
-    const chapterUrl = normalizeUrl(chapter.additionalInfo?.url ?? chapter.chapterId, BASE_URL)
+    const preparedChapter = await this.prepareReaderChapter(chapter)
+    const chapterUrl = this.resolveReaderChapterUrl(preparedChapter)
     if (!chapterUrl) throw new Error('Invalid NineManga chapter URL')
 
-    const pageRefs = await this.resolveChapterPageRefs(chapterUrl, BASE_URL, 0, new Set<string>())
+    const pageRefs = await this.resolveChapterPageRefs(preparedChapter, chapterUrl)
     const pages: string[] = []
 
     for (const pageRef of pageRefs) {

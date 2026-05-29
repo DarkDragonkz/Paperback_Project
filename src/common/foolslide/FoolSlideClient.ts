@@ -69,26 +69,34 @@ export class FoolSlideClient {
   }
 
   async getDiscoverSections(): Promise<DiscoverSection[]> {
-    return [
+    const sections: DiscoverSection[] = [
       {
         id: 'featured',
         title: 'In evidenza',
-        subtitle: 'Serie aggiornate di recente',
+        subtitle: this.supportsLatest() ? 'Serie aggiornate di recente' : 'Serie dal catalogo',
         type: DiscoverSectionType.featured,
       },
-      {
+    ]
+
+    if (this.supportsLatest()) {
+      sections.push({
         id: 'latest',
         title: 'Ultimi capitoli',
         subtitle: 'Aggiornamenti recenti',
         type: DiscoverSectionType.chapterUpdates,
-      },
+      })
+    }
+
+    sections.push(
       {
         id: 'catalog',
         title: 'Catalogo',
         subtitle: 'Serie disponibili',
         type: DiscoverSectionType.prominentCarousel,
       },
-    ]
+    )
+
+    return sections
   }
 
   async getDiscoverSectionItems(
@@ -96,7 +104,8 @@ export class FoolSlideClient {
     metadata: Metadata | undefined
   ): Promise<PagedResults<DiscoverSectionItem>> {
     const page = section.id === 'featured' ? 1 : this.pageFromMetadata(metadata)
-    const items = section.id === 'latest' || section.id === 'featured'
+    const useLatestListing = this.supportsLatest() && (section.id === 'latest' || section.id === 'featured')
+    const items = useLatestListing
       ? await this.latestItems(page)
       : this.parser.parseDirectory(
         (await this.getHtml(this.directoryPath(page))).body,
@@ -104,9 +113,9 @@ export class FoolSlideClient {
       )
     if (items.length === 0) return EndOfPageResults
 
-    const enriched = section.id === 'latest' || section.id === 'featured'
+    const enriched = useLatestListing
       ? await this.withThumbnails(items.slice(0, section.id === 'featured' ? 8 : 24))
-      : items.filter((item) => item.imageUrl)
+      : items.filter((item) => item.imageUrl).slice(0, section.id === 'featured' ? 8 : undefined)
     return {
       items: enriched.map((item) => this.toDiscoverItem(section, item)),
       metadata: section.id === 'featured' ? undefined : { page: page + 1 },
@@ -126,9 +135,12 @@ export class FoolSlideClient {
   }
 
   private async latestItems(page: number): Promise<FoolSlideListingItem[]> {
-    const path = this.config.popularUsesLatest ? this.latestPath(page) : this.latestPath(page)
-    const response = await this.getHtml(path)
+    const response = await this.getHtml(this.latestPath(page))
     return this.parser.parseLatest(response.body, response.url)
+  }
+
+  private supportsLatest(): boolean {
+    return this.config.supportsLatest !== false
   }
 
   private async withThumbnails(items: FoolSlideListingItem[]): Promise<FoolSlideListingItem[]> {
