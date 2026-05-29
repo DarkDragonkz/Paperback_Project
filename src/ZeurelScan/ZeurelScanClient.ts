@@ -35,6 +35,12 @@ interface CacheEntry<T> {
 
 const SECTIONS: ZeurelScanListingConfig[] = [
   {
+    id: 'featured',
+    title: 'In evidenza',
+    path: '/ultimi',
+    includeChapterUpdates: false,
+  },
+  {
     id: 'latest',
     title: 'Ultimi capitoli',
     path: '/ultimi',
@@ -87,10 +93,8 @@ export class ZeurelScanClient {
     return SECTIONS.map((section) => ({
       id: section.id,
       title: section.title,
-      subtitle: section.includeChapterUpdates ? 'Capitoli appena pubblicati' : 'Catalogo serie',
-      type: section.includeChapterUpdates
-        ? DiscoverSectionType.chapterUpdates
-        : DiscoverSectionType.simpleCarousel,
+      subtitle: this.sectionSubtitle(section.id),
+      type: this.sectionType(section.id),
     }))
   }
 
@@ -104,13 +108,16 @@ export class ZeurelScanClient {
     if (!config) return EndOfPageResults
 
     const response = await this.getHtml(config.path)
-    const items = config.id === 'latest'
+    const items = config.id === 'latest' || config.id === 'featured'
       ? this.parser.parseLatest(response.body, response.url)
       : this.parser.parseSeries(response.body, response.url)
     if (items.length === 0) return EndOfPageResults
 
     return {
-      items: items.map((item) => this.toDiscoverItem(config, item)),
+      items: items
+        .filter((item) => item.imageUrl)
+        .slice(0, config.id === 'featured' ? 8 : undefined)
+        .map((item) => this.toDiscoverItem(config, item)),
       metadata: undefined,
     }
   }
@@ -149,6 +156,17 @@ export class ZeurelScanClient {
     config: ZeurelScanListingConfig,
     item: ZeurelScanListingItem
   ): DiscoverSectionItem {
+    if (config.id === 'featured') {
+      return {
+        type: 'featuredCarouselItem',
+        mangaId: item.mangaId,
+        imageUrl: item.imageUrl,
+        title: item.title,
+        supertitle: item.latestChapterTitle,
+        contentRating: ContentRating.EVERYONE,
+      }
+    }
+
     if (config.includeChapterUpdates && item.latestChapterId) {
       return {
         type: 'chapterUpdatesCarouselItem',
@@ -162,12 +180,33 @@ export class ZeurelScanClient {
     }
 
     return {
-      type: 'simpleCarouselItem',
+      type: config.id === 'series' ? 'prominentCarouselItem' : 'simpleCarouselItem',
       mangaId: item.mangaId,
       imageUrl: item.imageUrl,
       title: item.title,
       subtitle: item.latestChapterTitle,
       contentRating: ContentRating.EVERYONE,
+    }
+  }
+
+  private sectionType(sectionId: string): DiscoverSectionType {
+    if (sectionId === 'featured') return DiscoverSectionType.featured
+    if (sectionId === 'latest') return DiscoverSectionType.chapterUpdates
+    if (sectionId === 'series') return DiscoverSectionType.prominentCarousel
+
+    return DiscoverSectionType.simpleCarousel
+  }
+
+  private sectionSubtitle(sectionId: string): string {
+    switch (sectionId) {
+      case 'featured':
+        return 'Serie aggiornate in homepage'
+      case 'latest':
+        return 'Capitoli appena pubblicati'
+      case 'series':
+        return 'Catalogo serie'
+      default:
+        return ''
     }
   }
 

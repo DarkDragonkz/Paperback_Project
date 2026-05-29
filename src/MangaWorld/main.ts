@@ -46,7 +46,7 @@ class MangaWorldExtension
     sortingOption: SortingOption | undefined
   ): Promise<PagedResults<SearchResultItem>> {
     void sortingOption
-    return this.client.getSearchResults(query.title, metadata)
+    return this.client.getSearchResults(query.title, metadata, query.metadata)
   }
 
   async getDiscoverSections(): Promise<DiscoverSection[]> {

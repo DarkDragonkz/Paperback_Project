@@ -53,7 +53,7 @@ class PizzaReaderExtension
   ): Promise<PagedResults<SearchResultItem>> {
     void metadata
     void sortingOption
-    return this.client.getSearchResults(query.title)
+    return this.client.getSearchResults(query.title, query.metadata)
   }
 
   async getDiscoverSections(): Promise<DiscoverSection[]> {

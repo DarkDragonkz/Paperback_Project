@@ -71,6 +71,12 @@ export class FoolSlideClient {
   async getDiscoverSections(): Promise<DiscoverSection[]> {
     return [
       {
+        id: 'featured',
+        title: 'In evidenza',
+        subtitle: 'Serie aggiornate di recente',
+        type: DiscoverSectionType.featured,
+      },
+      {
         id: 'latest',
         title: 'Ultimi capitoli',
         subtitle: 'Aggiornamenti recenti',
@@ -80,7 +86,7 @@ export class FoolSlideClient {
         id: 'catalog',
         title: 'Catalogo',
         subtitle: 'Serie disponibili',
-        type: DiscoverSectionType.simpleCarousel,
+        type: DiscoverSectionType.prominentCarousel,
       },
     ]
   }
@@ -89,8 +95,8 @@ export class FoolSlideClient {
     section: DiscoverSection,
     metadata: Metadata | undefined
   ): Promise<PagedResults<DiscoverSectionItem>> {
-    const page = this.pageFromMetadata(metadata)
-    const items = section.id === 'latest'
+    const page = section.id === 'featured' ? 1 : this.pageFromMetadata(metadata)
+    const items = section.id === 'latest' || section.id === 'featured'
       ? await this.latestItems(page)
       : this.parser.parseDirectory(
         (await this.getHtml(this.directoryPath(page))).body,
@@ -98,10 +104,12 @@ export class FoolSlideClient {
       )
     if (items.length === 0) return EndOfPageResults
 
-    const enriched = section.id === 'latest' ? await this.withThumbnails(items.slice(0, 20)) : items
+    const enriched = section.id === 'latest' || section.id === 'featured'
+      ? await this.withThumbnails(items.slice(0, section.id === 'featured' ? 8 : 24))
+      : items.filter((item) => item.imageUrl)
     return {
       items: enriched.map((item) => this.toDiscoverItem(section, item)),
-      metadata: { page: page + 1 },
+      metadata: section.id === 'featured' ? undefined : { page: page + 1 },
     }
   }
 
@@ -168,6 +176,17 @@ export class FoolSlideClient {
   }
 
   private toDiscoverItem(section: DiscoverSection, item: FoolSlideListingItem): DiscoverSectionItem {
+    if (section.id === 'featured') {
+      return {
+        type: 'featuredCarouselItem',
+        mangaId: item.mangaId,
+        imageUrl: item.imageUrl,
+        title: item.title,
+        supertitle: item.latestChapterTitle,
+        contentRating: ContentRating.EVERYONE,
+      }
+    }
+
     if (section.id === 'latest' && item.latestChapterId) {
       return {
         type: 'chapterUpdatesCarouselItem',
@@ -182,7 +201,7 @@ export class FoolSlideClient {
     }
 
     return {
-      type: 'simpleCarouselItem',
+      type: section.id === 'catalog' ? 'prominentCarouselItem' : 'simpleCarouselItem',
       mangaId: item.mangaId,
       imageUrl: item.imageUrl,
       title: item.title,

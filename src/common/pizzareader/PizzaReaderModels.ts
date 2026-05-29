@@ -7,7 +7,7 @@ export interface PizzaReaderConfig {
   requestDelayMs?: number
 }
 
-export type PizzaReaderSectionId = 'popular' | 'latest'
+export type PizzaReaderSectionId = 'featured' | 'popular' | 'latest'
 
 export interface PizzaReaderListingConfig {
   id: PizzaReaderSectionId

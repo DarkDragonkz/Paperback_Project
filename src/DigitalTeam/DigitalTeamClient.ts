@@ -83,10 +83,16 @@ export class DigitalTeamClient {
   async getDiscoverSections(): Promise<DiscoverSection[]> {
     return [
       {
+        id: 'featured',
+        title: 'In evidenza',
+        subtitle: 'Serie dal catalogo DigitalTeam',
+        type: DiscoverSectionType.featured,
+      },
+      {
         id: 'catalog',
         title: 'Catalogo',
         subtitle: 'Serie disponibili',
-        type: DiscoverSectionType.simpleCarousel,
+        type: DiscoverSectionType.prominentCarousel,
       },
     ]
   }
@@ -95,20 +101,16 @@ export class DigitalTeamClient {
     section: DiscoverSection,
     metadata: Metadata | undefined
   ): Promise<PagedResults<DiscoverSectionItem>> {
-    void section
     void metadata
 
     const items = await this.seriesItems()
     if (items.length === 0) return EndOfPageResults
 
     return {
-      items: items.map((item) => ({
-        type: 'simpleCarouselItem',
-        mangaId: item.mangaId,
-        imageUrl: item.imageUrl,
-        title: item.title,
-        contentRating: ContentRating.MATURE,
-      })),
+      items: items
+        .filter((item) => item.imageUrl)
+        .slice(0, section.id === 'featured' ? 8 : undefined)
+        .map((item) => this.toDiscoverItem(section, item)),
       metadata: undefined,
     }
   }
@@ -129,6 +131,27 @@ export class DigitalTeamClient {
   private async seriesItems(): Promise<DigitalTeamListingItem[]> {
     const response = await this.getHtml('/reader/series')
     return this.parser.parseSeries(response.body, response.url)
+  }
+
+  private toDiscoverItem(section: DiscoverSection, item: DigitalTeamListingItem): DiscoverSectionItem {
+    if (section.id === 'featured') {
+      return {
+        type: 'featuredCarouselItem',
+        mangaId: item.mangaId,
+        imageUrl: item.imageUrl,
+        title: item.title,
+        supertitle: 'DigitalTeam',
+        contentRating: ContentRating.MATURE,
+      }
+    }
+
+    return {
+      type: 'prominentCarouselItem',
+      mangaId: item.mangaId,
+      imageUrl: item.imageUrl,
+      title: item.title,
+      contentRating: ContentRating.MATURE,
+    }
   }
 
   private async getMangaData(mangaId: string): Promise<DigitalTeamMangaData> {

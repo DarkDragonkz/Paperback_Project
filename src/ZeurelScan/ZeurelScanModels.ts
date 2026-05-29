@@ -1,6 +1,6 @@
 import type { Chapter } from '@paperback/types'
 
-export type ZeurelScanSectionId = 'latest' | 'series'
+export type ZeurelScanSectionId = 'featured' | 'latest' | 'series'
 
 export interface ZeurelScanListingConfig {
   id: ZeurelScanSectionId

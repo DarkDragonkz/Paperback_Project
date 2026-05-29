@@ -267,9 +267,8 @@ export class NineMangaClient {
     return SECTIONS.map((section) => ({
       id: section.id,
       title: section.title,
-      type: section.includeChapterUpdates
-        ? DiscoverSectionType.chapterUpdates
-        : DiscoverSectionType.simpleCarousel,
+      subtitle: this.sectionSubtitle(section.id),
+      type: this.sectionType(section.id),
     }))
   }
 
@@ -388,6 +387,17 @@ export class NineMangaClient {
     config: NineMangaListingConfig,
     item: NineMangaListingItem
   ): DiscoverSectionItem {
+    if (config.id === 'hot') {
+      return {
+        type: 'featuredCarouselItem',
+        mangaId: item.mangaId,
+        imageUrl: item.imageUrl,
+        title: item.title,
+        supertitle: item.genres.join(', ') || item.latestChapterTitle,
+        contentRating: this.contentRatingForGenres(item.genres),
+      }
+    }
+
     if (config.includeChapterUpdates && item.latestChapterId) {
       return {
         type: 'chapterUpdatesCarouselItem',
@@ -401,12 +411,36 @@ export class NineMangaClient {
     }
 
     return {
-      type: 'simpleCarouselItem',
+      type: 'prominentCarouselItem',
       mangaId: item.mangaId,
       imageUrl: item.imageUrl,
       title: item.title,
       subtitle: item.genres.join(', ') || item.latestChapterTitle,
       contentRating: this.contentRatingForGenres(item.genres),
+    }
+  }
+
+  private sectionType(sectionId: string): DiscoverSectionType {
+    if (sectionId === 'latest') return DiscoverSectionType.chapterUpdates
+    if (sectionId === 'hot') return DiscoverSectionType.featured
+
+    return DiscoverSectionType.prominentCarousel
+  }
+
+  private sectionSubtitle(sectionId: string): string {
+    switch (sectionId) {
+      case 'latest':
+        return 'Fresh chapter releases'
+      case 'hot':
+        return 'Popular manga on NineManga'
+      case 'new':
+        return 'Newly added series'
+      case 'completed':
+        return 'Completed series'
+      case 'updated':
+        return 'Recently updated directory'
+      default:
+        return ''
     }
   }
 

@@ -66,6 +66,12 @@ export class AnimeGDRClubClient {
   async getDiscoverSections(): Promise<DiscoverSection[]> {
     return [
       {
+        id: 'featured',
+        title: 'In evidenza',
+        subtitle: 'Ultime serie aggiornate',
+        type: DiscoverSectionType.featured,
+      },
+      {
         id: 'latest',
         title: 'Ultimi capitoli',
         subtitle: 'Aggiornamenti recenti',
@@ -75,7 +81,7 @@ export class AnimeGDRClubClient {
         id: 'popular',
         title: 'Popolari',
         subtitle: 'Serie piu lette',
-        type: DiscoverSectionType.simpleCarousel,
+        type: DiscoverSectionType.prominentCarousel,
       },
     ]
   }
@@ -86,13 +92,16 @@ export class AnimeGDRClubClient {
   ): Promise<PagedResults<DiscoverSectionItem>> {
     void metadata
 
-    const items = section.id === 'latest'
+    const items = section.id === 'latest' || section.id === 'featured'
       ? this.parser.parseLatest((await this.getHtml('/')).body, BASE_URL)
       : this.parser.parsePopular((await this.getHtml('/serie.php')).body, normalizeUrl('/serie.php', BASE_URL))
     if (items.length === 0) return EndOfPageResults
 
     return {
-      items: items.map((item) => this.toDiscoverItem(section, item)),
+      items: items
+        .filter((item) => item.imageUrl)
+        .slice(0, section.id === 'featured' ? 8 : undefined)
+        .map((item) => this.toDiscoverItem(section, item)),
       metadata: undefined,
     }
   }
@@ -133,6 +142,17 @@ export class AnimeGDRClubClient {
     section: DiscoverSection,
     item: AnimeGDRClubListingItem
   ): DiscoverSectionItem {
+    if (section.id === 'featured') {
+      return {
+        type: 'featuredCarouselItem',
+        mangaId: item.mangaId,
+        imageUrl: item.imageUrl,
+        title: item.title,
+        supertitle: item.latestChapterTitle,
+        contentRating: ContentRating.EVERYONE,
+      }
+    }
+
     if (section.id === 'latest' && item.latestChapterId) {
       return {
         type: 'chapterUpdatesCarouselItem',
@@ -147,7 +167,7 @@ export class AnimeGDRClubClient {
     }
 
     return {
-      type: 'simpleCarouselItem',
+      type: section.id === 'popular' ? 'prominentCarouselItem' : 'simpleCarouselItem',
       mangaId: item.mangaId,
       imageUrl: item.imageUrl,
       title: item.title,

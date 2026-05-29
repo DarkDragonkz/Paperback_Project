@@ -29,6 +29,23 @@ const MOBILE_USER_AGENT =
 const HTML_CACHE_TTL_MS = 5 * 60 * 1000
 const MANGA_DATA_CACHE_TTL_MS = 10 * 60 * 1000
 const MAX_CACHE_ENTRIES = 30
+const MANGAWORLD_GENRES = [
+  ['azione', 'Azione'],
+  ['avventura', 'Avventura'],
+  ['commedia', 'Commedia'],
+  ['drammatico', 'Drammatico'],
+  ['fantasy', 'Fantasy'],
+  ['horror', 'Horror'],
+  ['isekai', 'Isekai'],
+  ['mistero', 'Mistero'],
+  ['psicologico', 'Psicologico'],
+  ['romantico', 'Romantico'],
+  ['scolastico', 'Scolastico'],
+  ['seinen', 'Seinen'],
+  ['shonen', 'Shonen'],
+  ['slice-of-life', 'Slice of Life'],
+  ['soprannaturale', 'Soprannaturale'],
+] as const
 
 interface CacheEntry<T> {
   expiresAt: number
@@ -52,6 +69,18 @@ const SECTIONS: MangaWorldListingConfig[] = [
     id: 'popular',
     title: 'Piu letti',
     path: '/archive?sort=most_read',
+    includeChapterUpdates: false,
+  },
+  {
+    id: 'new',
+    title: 'Nuove aggiunte',
+    path: '/archive?sort=newest',
+    includeChapterUpdates: false,
+  },
+  {
+    id: 'completed',
+    title: 'Completati',
+    path: '/archive?status=completed',
     includeChapterUpdates: false,
   },
 ]
@@ -93,12 +122,20 @@ export class MangaWorldClient {
   }
 
   async getDiscoverSections(): Promise<DiscoverSection[]> {
-    return SECTIONS.map((section) => ({
+    return [
+      ...SECTIONS.map((section) => ({
       id: section.id,
       title: section.title,
       subtitle: this.sectionSubtitle(section.id),
       type: this.sectionType(section.id),
-    }))
+      })),
+      {
+        id: 'genres',
+        title: 'Generi',
+        subtitle: 'Esplora MangaWorld per genere',
+        type: DiscoverSectionType.genres,
+      },
+    ]
   }
 
   async getDiscoverSectionItems(
@@ -106,6 +143,15 @@ export class MangaWorldClient {
     metadata: Metadata | undefined
   ): Promise<PagedResults<DiscoverSectionItem>> {
     const config = SECTIONS.find((candidate) => candidate.id === section.id)
+    if (!config && section.id !== 'genres') return EndOfPageResults
+
+    if (section.id === 'genres') {
+      return {
+        items: this.genreItems(),
+        metadata: undefined,
+      }
+    }
+
     if (!config) return EndOfPageResults
 
     const pageUrl = this.readNextUrl(metadata) || normalizeUrl(config.path, BASE_URL)
@@ -121,11 +167,13 @@ export class MangaWorldClient {
 
   async getSearchResults(
     title: string,
-    metadata: Metadata | undefined
+    metadata: Metadata | undefined,
+    searchMetadata: Metadata | undefined
   ): Promise<PagedResults<SearchResultItem>> {
     const query = title.trim()
+    const genre = this.searchGenre(searchMetadata)
     if (!query) {
-      const response = await this.getHtml(BASE_URL)
+      const response = await this.getHtml(genre ? `/archive?genre=${encodeURIComponent(genre)}` : BASE_URL)
       const latest = this.parser.parseMangaTiles(response.body, response.url)
 
       return {
@@ -136,7 +184,7 @@ export class MangaWorldClient {
 
     const searchUrl =
       this.readNextUrl(metadata) ||
-      withQueryParam('/archive', BASE_URL, 'keyword', query)
+      this.searchUrl(query, genre)
     const response = await this.getHtml(searchUrl)
     const items = this.parser.parseMangaTiles(response.body, response.url)
 
@@ -204,6 +252,9 @@ export class MangaWorldClient {
   private sectionType(sectionId: string): DiscoverSectionType {
     if (sectionId === 'featured') return DiscoverSectionType.featured
     if (sectionId === 'latest') return DiscoverSectionType.chapterUpdates
+    if (sectionId === 'popular') return DiscoverSectionType.prominentCarousel
+    if (sectionId === 'new') return DiscoverSectionType.simpleCarousel
+    if (sectionId === 'completed') return DiscoverSectionType.simpleCarousel
 
     return DiscoverSectionType.prominentCarousel
   }
@@ -216,9 +267,39 @@ export class MangaWorldClient {
         return 'Capitoli appena pubblicati'
       case 'popular':
         return 'Serie piu lette sul sito'
+      case 'new':
+        return 'Serie aggiunte di recente'
+      case 'completed':
+        return 'Serie concluse'
       default:
         return ''
     }
+  }
+
+  private genreItems(): DiscoverSectionItem[] {
+    return MANGAWORLD_GENRES.map(([id, title]) => ({
+      type: 'genresCarouselItem',
+      name: title,
+      searchQuery: {
+        title: '',
+        metadata: {
+          genre: id,
+        },
+      },
+      contentRating: this.parser.contentRatingForGenres([title]),
+    }))
+  }
+
+  private searchUrl(query: string, genre: string): string {
+    const url = withQueryParam('/archive', BASE_URL, 'keyword', query)
+    return genre ? withQueryParam(url, BASE_URL, 'genre', genre) : url
+  }
+
+  private searchGenre(metadata: Metadata | undefined): string {
+    if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) return ''
+
+    const genre = metadata.genre
+    return typeof genre === 'string' ? genre : ''
   }
 
   private async getHtml(url: string, referer = BASE_URL) {
