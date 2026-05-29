@@ -24,6 +24,27 @@ export async function getText(url: string, headers?: HeaderMap): Promise<TextRes
   return getTextWithRedirects(url, headers, 0)
 }
 
+export async function postText(
+  url: string,
+  body: string,
+  headers?: HeaderMap
+): Promise<TextResponse> {
+  const request: Request = {
+    url,
+    method: 'POST',
+    headers,
+    body,
+  }
+
+  const [response, data] = await Application.scheduleRequest(request)
+
+  return {
+    url: response.url,
+    status: response.status,
+    body: Application.arrayBufferToUTF8String(data),
+  }
+}
+
 async function getTextWithRedirects(
   url: string,
   headers: HeaderMap | undefined,
