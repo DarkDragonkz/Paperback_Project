@@ -98,18 +98,10 @@ export class NineMangaClient {
   }
 
   async getChapterDetails(chapter: Chapter): Promise<ChapterDetails> {
-    const preparedChapter = await this.prepareReaderChapter(chapter)
-    this.setReaderUnlockCookie(preparedChapter)
+    const chapterUrl = normalizeUrl(chapter.additionalInfo?.url ?? chapter.chapterId, BASE_URL)
+    if (!chapterUrl) throw new Error('Invalid NineManga chapter URL')
 
-    const rawChapterUrl = this.resolveReaderChapterUrl(preparedChapter)
-    const chapterUrl = this.stripWarningParamFromChapterUrl(rawChapterUrl)
-
-    console.log(`[NineManga] Reader URL before strip: ${rawChapterUrl}`)
-    console.log(`[NineManga] Reader URL after strip: ${chapterUrl}`)
-
-    const pageRefs = await this.resolveChapterPageRefs(preparedChapter, chapterUrl)
-    console.log(`[NineManga] Reader page refs found: ${pageRefs.length}`)
-
+    const pageRefs = await this.resolveChapterPageRefs(chapterUrl, BASE_URL, 0, new Set<string>())
     const pages: string[] = []
 
     for (const pageRef of pageRefs) {
@@ -118,8 +110,8 @@ export class NineMangaClient {
         continue
       }
 
-      const pageHtml = await this.getHtml(pageRef.url)
-      const imageUrl = this.parser.parseImage(pageHtml.body)
+      const pageHtml = await this.getHtml(pageRef.url, chapterUrl)
+      const imageUrl = this.parser.parseImage(pageHtml.body, pageHtml.url)
       if (imageUrl) pages.push(imageUrl)
     }
 
