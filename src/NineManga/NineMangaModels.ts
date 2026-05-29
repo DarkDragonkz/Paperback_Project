@@ -1,12 +1,18 @@
 import type { Chapter } from '@paperback/types'
 
-export type NineMangaSectionId = 'featured' | 'latest' | 'popular'
+export type NineMangaSectionId = 'featured' | 'latest' | 'popular' | 'genres'
 
 export interface NineMangaListingConfig {
-  id: NineMangaSectionId
+  id: Exclude<NineMangaSectionId, 'genres'>
   title: string
   path: string
   includeChapterUpdates: boolean
+}
+
+export interface NineMangaGenre {
+  id: string
+  title: string
+  path: string
 }
 
 export interface NineMangaListingPage {
@@ -54,4 +60,10 @@ export interface NineMangaChapterPageResult {
 export interface NineMangaPageMetadata {
   [key: string]: string | undefined
   nextUrl?: string
+}
+
+export interface NineMangaSearchMetadata {
+  [key: string]: string | undefined
+  genrePath?: string
+  genreTitle?: string
 }

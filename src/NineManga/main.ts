@@ -46,7 +46,7 @@ class NineMangaExtension
     sortingOption: SortingOption | undefined
   ): Promise<PagedResults<SearchResultItem>> {
     void sortingOption
-    return this.client.getSearchResults(query.title, metadata)
+    return this.client.getSearchResults(query.title, query.metadata, metadata)
   }
 
   async getDiscoverSections(): Promise<DiscoverSection[]> {
