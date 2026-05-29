@@ -1,5 +1,5 @@
 {
-  "buildTime": "2026-05-29T14:41:50.991Z",
+  "buildTime": "2026-05-29T15:59:18.885Z",
   "builtWith": {
     "toolchain": "1.0.0-alpha.86",
     "types": "1.0.0-alpha.86"
@@ -9,6 +9,33 @@
     "description": "A modular Paperback iOS 0.9 extension repository, starting with NineManga."
   },
   "sources": [
+    {
+      "version": "1.0.0",
+      "name": "LupiTeam",
+      "icon": "icon.png",
+      "description": "LupiTeam source using the PizzaReader JSON API for catalogue, search, chapters, and reader pages.",
+      "contentRating": "MATURE",
+      "developers": [
+        {
+          "name": "DarkDragonkz",
+          "github": "DarkDragonkz"
+        }
+      ],
+      "language": "it",
+      "badges": [
+        {
+          "label": "PizzaReader",
+          "textColor": "#ffffff",
+          "backgroundColor": "#ef4444"
+        }
+      ],
+      "capabilities": [
+        1,
+        64,
+        4
+      ],
+      "id": "LupiTeam"
+    },
     {
       "version": "1.0.0",
       "name": "MangaWorld",
