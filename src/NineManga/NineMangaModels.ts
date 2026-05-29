@@ -1,17 +1,13 @@
 import type { Chapter } from '@paperback/types'
 
-export type NineMangaSectionId = 'featured' | 'latest' | 'popular'
+export type NineMangaSectionId = 'latest' | 'hot' | 'new' | 'completed' | 'updated'
 
 export interface NineMangaListingConfig {
   id: NineMangaSectionId
   title: string
   path: string
+  ajaxPrefix: string
   includeChapterUpdates: boolean
-}
-
-export interface NineMangaListingPage {
-  items: NineMangaListingItem[]
-  nextUrl?: string
 }
 
 export interface NineMangaListingItem {
@@ -46,12 +42,10 @@ export interface NineMangaChapterPage {
   imageUrl?: string
 }
 
-export interface NineMangaChapterPageResult {
-  pages: NineMangaChapterPage[]
-  nextUrl?: string
-}
-
-export interface NineMangaPageMetadata {
-  [key: string]: string | undefined
-  nextUrl?: string
-}
+export type NineMangaMobileSearchItem = [
+  imageUrl?: string,
+  title?: string,
+  url?: string,
+  unknown?: string,
+  author?: string,
+]
