@@ -120,7 +120,7 @@ export class NineMangaParser {
 
   parseChapterPage(html: string, currentUrl: string): NineMangaChapterPage[] {
     const $ = cheerio.load(html)
-    const imageUrl = this.normalizeImageUrl($('img.manga_pic[src]').first().attr('src'))
+    const imageUrl = this.normalizeImageUrl($('img.manga_pic[src]').first().attr('src'), currentUrl)
     const normalizedCurrentUrl = normalizeUrl(currentUrl, this.baseUrl)
     const pages: NineMangaChapterPage[] = []
 
@@ -141,8 +141,8 @@ export class NineMangaParser {
     if (pages.length > 0) return uniqueBy(pages, (page) => page.url)
 
     const allImageUrls = uniqueStrings([
-      ...this.parseAllImageUrls(html),
-      ...this.parseInlineReaderImageUrls(html),
+      ...this.parseAllImageUrls(html, currentUrl),
+      ...this.parseInlineReaderImageUrls(html, currentUrl),
     ])
     if (allImageUrls.length > 0) {
       return allImageUrls.map((imageUrl, index) => ({
@@ -151,7 +151,7 @@ export class NineMangaParser {
       }))
     }
 
-    const readerImages = this.parseReaderImages($)
+    const readerImages = this.parseReaderImages($, currentUrl)
     if (readerImages.length > 1) {
       return readerImages.map((imageUrl, index) => ({
         url: `${currentUrl}#page-${index + 1}`,
@@ -213,8 +213,7 @@ export class NineMangaParser {
 
   parseImage(html: string, currentUrl = this.baseUrl): string | undefined {
     const $ = cheerio.load(html)
-    void currentUrl
-    return this.parseAllImageUrls(html)[0] || this.parseReaderImages($)[0] || undefined
+    return this.parseAllImageUrls(html, currentUrl)[0] || this.parseReaderImages($, currentUrl)[0] || undefined
   }
 
   toSourceManga(data: NineMangaMangaData): SourceManga {
@@ -354,36 +353,40 @@ export class NineMangaParser {
     return normalizeUrl(left, this.baseUrl) === normalizeUrl(right, this.baseUrl)
   }
 
-  private parseAllImageUrls(html: string): string[] {
+  private parseAllImageUrls(html: string, currentUrl = this.baseUrl): string[] {
     const images: string[] = []
     const match = html.match(/all_imgs_url\s*:\s*\[([\s\S]*?)\]/)
     if (!match?.[1]) return images
 
     for (const imageMatch of match[1].matchAll(/["']([^"']+\.(?:webp|jpe?g|png)(?:\?[^"']*)?)["']/gi)) {
-      const imageUrl = this.normalizeImageUrl(imageMatch[1])
+      const imageUrl = this.normalizeImageUrl(imageMatch[1], currentUrl)
       if (imageUrl) images.push(imageUrl)
     }
 
     return uniqueStrings(images)
   }
 
-  private parseReaderImages($: cheerio.CheerioAPI): string[] {
+  private parseReaderImages($: cheerio.CheerioAPI, currentUrl = this.baseUrl): string[] {
     const images: string[] = []
 
     $('img.manga_pic').each((_, element) => {
       const image = $(element)
-      images.push(...this.imageUrlsFromAttributes(image, false))
+      images.push(...this.imageUrlsFromAttributes(image, false, currentUrl))
     })
 
     $('img').each((_, element) => {
       const image = $(element)
-      images.push(...this.imageUrlsFromAttributes(image, true))
+      images.push(...this.imageUrlsFromAttributes(image, true, currentUrl))
     })
 
     return uniqueStrings(images)
   }
 
-  private imageUrlsFromAttributes(image: cheerio.Cheerio<AnyNode>, requireReaderPath: boolean): string[] {
+  private imageUrlsFromAttributes(
+    image: cheerio.Cheerio<AnyNode>,
+    requireReaderPath: boolean,
+    currentUrl = this.baseUrl
+  ): string[] {
     const images: string[] = []
     const attributes = [
       'src',
@@ -397,7 +400,7 @@ export class NineMangaParser {
     ]
 
     for (const attribute of attributes) {
-      for (const imageUrl of this.imageUrlsFromValue(image.attr(attribute))) {
+      for (const imageUrl of this.imageUrlsFromValue(image.attr(attribute), currentUrl)) {
         if (!requireReaderPath || this.isReaderImageUrl(imageUrl)) images.push(imageUrl)
       }
     }
@@ -405,21 +408,21 @@ export class NineMangaParser {
     return images
   }
 
-  private imageUrlsFromValue(value: string | undefined): string[] {
+  private imageUrlsFromValue(value: string | undefined, currentUrl = this.baseUrl): string[] {
     const images: string[] = []
     if (!value) return images
 
     const decodedValue = this.decodeHtmlEntities(value)
 
     for (const match of decodedValue.matchAll(/(?:https?:)?\/\/[^\s"',<>]+\.(?:webp|jpe?g|png)(?:\?[^"',<>\s]*)?/gi)) {
-      const imageUrl = this.normalizeImageUrl(match[0])
+      const imageUrl = this.normalizeImageUrl(match[0], currentUrl)
       if (this.isImageUrl(imageUrl)) images.push(imageUrl)
     }
 
     if (images.length > 0) return images
 
     const firstPart = decodedValue.split(/\s+/)[0]
-    const imageUrl = this.normalizeImageUrl(firstPart)
+    const imageUrl = this.normalizeImageUrl(firstPart, currentUrl)
     return this.isImageUrl(imageUrl) ? [imageUrl] : []
   }
 
@@ -436,20 +439,20 @@ export class NineMangaParser {
     )
   }
 
-  private parseInlineReaderImageUrls(html: string): string[] {
+  private parseInlineReaderImageUrls(html: string, currentUrl = this.baseUrl): string[] {
     const images: string[] = []
     const decodedHtml = this.decodeHtmlEntities(html)
 
     for (const match of decodedHtml.matchAll(/(?:https?:)?\/\/[^\s"',<>]+\.(?:webp|jpe?g|png)(?:\?[^"',<>\s]*)?/gi)) {
-      const imageUrl = this.normalizeImageUrl(match[0])
+      const imageUrl = this.normalizeImageUrl(match[0], currentUrl)
       if (this.isImageUrl(imageUrl) && this.isReaderImageUrl(imageUrl)) images.push(imageUrl)
     }
 
     return uniqueStrings(images)
   }
 
-  private normalizeImageUrl(value: string | undefined): string {
-    return normalizeUrl(this.decodeHtmlEntities(value ?? ''), this.baseUrl)
+  private normalizeImageUrl(value: string | undefined, currentUrl = this.baseUrl): string {
+    return normalizeUrl(this.decodeHtmlEntities(value ?? ''), currentUrl || this.baseUrl)
   }
 
   private decodeHtmlEntities(value: string): string {
@@ -458,12 +461,6 @@ export class NineMangaParser {
       .replace(/&quot;/g, '"')
       .replace(/&#039;/g, "'")
       .replace(/&apos;/g, "'")
-  }
-
-  private chapterIdFromExternalSource(sourceUrl: string | undefined): string {
-    if (!sourceUrl) return ''
-
-    return this.parseExternalSourceChapterIdFromUrl(sourceUrl)
   }
 
 }

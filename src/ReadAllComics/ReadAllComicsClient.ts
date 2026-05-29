@@ -14,7 +14,6 @@ import {
 
 import type { HeaderMap } from '../common/http/headers'
 import type { PageMetadata } from '../common/models/Pagination'
-import { uniqueBy, uniqueStrings } from '../common/utils/array'
 import { normalizeUrl, pathIdFromUrl } from '../common/utils/url'
 import { getText, postForm, type TextResponse } from './ReadAllComicsHttp'
 import type {
