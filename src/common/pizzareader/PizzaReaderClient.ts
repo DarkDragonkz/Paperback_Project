@@ -14,6 +14,7 @@ import {
 import { defaultBrowserHeaders, mergeHeaders, type HeaderMap } from '../http/headers'
 import { getJson } from '../http/request'
 import type {
+  PizzaReaderChapter,
   PizzaReaderChapterResponse,
   PizzaReaderComic,
   PizzaReaderComicListResponse,
@@ -70,9 +71,18 @@ export class PizzaReaderClient {
   }
 
   async getChapterDetails(chapter: Chapter): Promise<ChapterDetails> {
-    const endpoint = `/api${chapter.additionalInfo?.url || chapter.chapterId}`
-    const result = await this.getApi<PizzaReaderChapterResponse>(endpoint)
-    const pages = this.parser.chapterPages(result.chapter)
+    const endpoints = await this.chapterReaderEndpoints(chapter)
+    let pages: string[] = []
+
+    for (const endpoint of endpoints) {
+      const result = await this.getApi<PizzaReaderChapterResponse>(endpoint, 0)
+      pages = this.parser.chapterPages(result.chapter)
+      console.log(
+        `[${this.config.sourceName}] Reader endpoint ${endpoint} returned ${pages.length} images`
+      )
+
+      if (pages.length > 0) break
+    }
 
     console.log(`[${this.config.sourceName}] Reader images returned: ${pages.length}`)
     if (pages.length === 0) throw new Error(`No readable pages found for this ${this.config.sourceName} chapter`)
@@ -81,6 +91,40 @@ export class PizzaReaderClient {
       id: chapter.chapterId,
       mangaId: chapter.sourceManga.mangaId,
       pages,
+    }
+  }
+
+  private async chapterReaderEndpoints(chapter: Chapter): Promise<string[]> {
+    const rawPath = chapter.additionalInfo?.url || chapter.chapterId
+    const endpoints = [
+      this.apiEndpoint(rawPath),
+      this.apiEndpoint(this.withSubchapter(rawPath, chapter.additionalInfo?.subchapter)),
+    ]
+
+    const refreshedChapter = await this.findCurrentChapter(chapter)
+    if (refreshedChapter?.url) {
+      endpoints.push(this.apiEndpoint(refreshedChapter.url))
+      endpoints.push(this.apiEndpoint(this.withSubchapter(refreshedChapter.url, chapter.additionalInfo?.subchapter)))
+    }
+
+    return [...new Set(endpoints.filter((endpoint) => endpoint !== '/api/'))]
+  }
+
+  private async findCurrentChapter(chapter: Chapter): Promise<PizzaReaderChapter | undefined> {
+    try {
+      const comic = await this.getComic(chapter.sourceManga.mangaId)
+      const chapters = comic.chapters ?? []
+      const storedPath = this.normalizedPath(chapter.additionalInfo?.url || chapter.chapterId)
+
+      return chapters.find((candidate) => this.normalizedPath(candidate.url ?? '') === storedPath) ||
+        chapters.find((candidate) =>
+          candidate.volume === chapter.volume &&
+          this.chapterNumber(candidate) === chapter.chapNum
+        ) ||
+        chapters.find((candidate) => candidate.full_title === chapter.title)
+    } catch (error) {
+      console.log(`[${this.config.sourceName}] Could not refresh chapter URL: ${String(error)}`)
+      return undefined
     }
   }
 
@@ -174,10 +218,11 @@ export class PizzaReaderClient {
     }
   }
 
-  private async getApi<T>(endpoint: string): Promise<T> {
+  private async getApi<T>(endpoint: string, ttlMs = API_CACHE_TTL_MS): Promise<T> {
     const path = this.normalizedPath(endpoint)
     const url = `${this.config.baseUrl.replace(/\/+$/, '')}${path}`
-    const cached = this.cacheValue(this.apiCache, url) as T | undefined
+    const shouldCache = ttlMs > 0
+    const cached = shouldCache ? this.cacheValue(this.apiCache, url) as T | undefined : undefined
     if (cached) return cached
 
     const pending = this.apiRequests.get(url) as Promise<T> | undefined
@@ -185,7 +230,7 @@ export class PizzaReaderClient {
 
     const request = this.withRateLimit(async () => getJson<T>(url, await this.headers()))
       .then((result) => {
-        this.rememberCache(this.apiCache, url, result, API_CACHE_TTL_MS)
+        if (shouldCache) this.rememberCache(this.apiCache, url, result, ttlMs)
         return result
       })
       .finally(() => {
@@ -231,8 +276,31 @@ export class PizzaReaderClient {
   private async headers(): Promise<HeaderMap> {
     return mergeHeaders(await defaultBrowserHeaders(this.config.baseUrl), {
       accept: 'application/json,text/plain,*/*',
+      'accept-language': 'it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7',
       referer: this.config.baseUrl,
+      'x-requested-with': 'XMLHttpRequest',
     })
+  }
+
+  private apiEndpoint(path: string): string {
+    const normalized = this.normalizedPath(path)
+    return normalized.startsWith('/api/') ? normalized : `/api${normalized}`
+  }
+
+  private withSubchapter(path: string, subchapter: string | undefined): string {
+    const normalized = this.normalizedPath(path)
+    if (/\/sub\/[^/]+\/?$/i.test(normalized)) return normalized
+    if (!/\/ch\/[^/]+\/?$/i.test(normalized)) return normalized
+
+    return `${normalized.replace(/\/+$/, '')}/sub/${subchapter || '0'}`
+  }
+
+  private chapterNumber(chapter: PizzaReaderChapter): number {
+    const base = typeof chapter.chapter === 'number' ? chapter.chapter : 0
+    const subchapter = typeof chapter.subchapter === 'number' ? chapter.subchapter : 0
+    if (subchapter <= 0) return base
+
+    return Number(`${base}.${subchapter}`)
   }
 
   private normalizedPath(value: string): string {
