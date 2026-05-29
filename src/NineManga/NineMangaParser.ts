@@ -6,149 +6,209 @@ import {
   type TagSection,
 } from '@paperback/types'
 import * as cheerio from 'cheerio'
-import type { Cheerio, CheerioAPI } from 'cheerio'
 import type { AnyNode } from 'domhandler'
 
-import { cleanText } from '../common/parsing/html'
+import { cleanText, safeAttr, safeText, splitCommaList } from '../common/parsing/html'
 import { uniqueBy, uniqueStrings } from '../common/utils/array'
-import { orderChaptersForReading } from '../common/utils/chapters'
 import { normalizeUrl, pathIdFromUrl } from '../common/utils/url'
 import type {
   NineMangaChapterPage,
-  NineMangaChapterPageResult,
   NineMangaListingItem,
-  NineMangaListingPage,
   NineMangaMangaData,
+  NineMangaMobileSearchItem,
 } from './NineMangaModels'
 
 const ADULT_TAGS = new Set(['adult', 'hentai', 'smut'])
 const MATURE_TAGS = new Set(['mature', 'ecchi'])
-const BAD_IMAGE_PATTERN = /(logo|icon|avatar|sprite|blank|spacer|ads?|advert|tracking|tracker|pixel|analytics|counter|button|captcha|favicon|doubleclick|googlesyndication|google-analytics|facebook)/i
+const NON_GENRE_LABELS = new Set([
+  'genres',
+  'ongoing',
+  'completed',
+  '0-9',
+  ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split(''),
+])
 
 export class NineMangaParser {
   constructor(private readonly baseUrl: string) {}
 
-  parseListingPage(html: string, currentUrl = this.baseUrl): NineMangaListingPage {
+  parseListing(html: string): NineMangaListingItem[] {
     const $ = cheerio.load(html)
     const items: NineMangaListingItem[] = []
 
-    $('dl.bookinfo').each((_, element) => {
+    $('li').each((_, element) => {
       const item = $(element)
-      const mangaAnchor = item.find('a.bookname[href]').first()
-      const mangaUrl = normalizeUrl(mangaAnchor.attr('href'), currentUrl)
-      const title = cleanText(mangaAnchor.text()) || cleanText(mangaAnchor.attr('title'))
+      const mangaAnchor = item.find('dt a[href], dd.book-list a[href]').first()
+      const mangaUrl = normalizeUrl(mangaAnchor.attr('href'), this.baseUrl)
+      const title =
+        safeText($, 'dd.book-list b', item) ||
+        cleanText(mangaAnchor.attr('title')) ||
+        cleanText(mangaAnchor.text())
 
       if (!mangaUrl || !title) return
 
-      const chapterAnchor = item.find('a[href*="/chapter/"]').first()
-      const chapterUrl = normalizeUrl(chapterAnchor.attr('href'), currentUrl)
+      const chapterAnchor = item.find('dd.chapter a[href]').first()
+      const chapterUrl = normalizeUrl(chapterAnchor.attr('href'), this.baseUrl)
 
       items.push({
         mangaId: pathIdFromUrl(mangaUrl, this.baseUrl),
         title,
-        imageUrl: normalizeUrl(this.getImageUrl(item.find('img').first(), currentUrl), currentUrl),
+        imageUrl: normalizeUrl(safeAttr($, 'dt img[src]', 'src', item), this.baseUrl),
         url: mangaUrl,
-        genres: [],
+        genres: splitCommaList(safeText($, 'dd.book-list span', item)),
         latestChapterId: chapterUrl ? pathIdFromUrl(chapterUrl, this.baseUrl) : undefined,
-        latestChapterTitle: cleanText(chapterAnchor.text()) || undefined,
+        latestChapterTitle: cleanText(chapterAnchor.attr('title')) || cleanText(chapterAnchor.text()),
       })
     })
 
-    return {
-      items: uniqueBy(items, (item) => item.mangaId),
-      nextUrl: this.parseNextPageUrl($, currentUrl),
-    }
-  }
-
-  parseListing(html: string): NineMangaListingItem[] {
-    return this.parseListingPage(html).items
+    return uniqueBy(items, (item) => item.mangaId)
   }
 
   parseManga(html: string, mangaId: string, shareUrl: string): NineMangaMangaData {
     const $ = cheerio.load(html)
-    const root = $('div.bookintro').first()
-    const rawTitle =
-      cleanText(root.find('li > span:not([class])').first().text()) ||
-      cleanText(root.find('h1, h2').first().text()) ||
-      this.titleFromDocument($) ||
-      this.titleFromMangaId(mangaId)
-    const title = cleanText(rawTitle.replace(/\s+Manga$/i, ''))
-    const genres = uniqueStrings(root.find('li[itemprop="genre"] a').map((_, element) => cleanText($(element).text())).get())
-    const author = cleanText(root.find('li a[itemprop="author"]').first().text())
-    const status = this.normalizeStatus(cleanText(root.find('li a.red').first().text()))
+    const rawTitle = safeText($, 'div.book-info h1 b')
+    const title = rawTitle.replace(/\s+Manga$/i, '') || rawTitle
+    const metadata = this.parseMetadata($)
+    const genres = this.parseGenres($, metadata)
+    const bookId = this.parseBookId(html)
     const warningUrl = normalizeUrl($('a[href*="waring=1"]').first().attr('href'), this.baseUrl) || undefined
+    const synopsis = this.parseSynopsis($)
     const isAdult = Boolean(warningUrl) || this.hasAdultTags(genres)
-    const additionalInfo = {
-      ...(author ? { Author: author } : {}),
-      ...(status ? { Status: status } : {}),
-    }
 
     return {
       mangaId,
       title,
-      imageUrl: normalizeUrl(this.getImageUrl(root.find('img[itemprop="image"]').first(), shareUrl), shareUrl),
-      author,
-      status,
-      synopsis: cleanText(root.find('p[itemprop="description"]').first().text()),
+      imageUrl: normalizeUrl(safeAttr($, 'div.book-info dt img[src]', 'src'), this.baseUrl),
+      author: metadata['Author(s)'],
+      artist: metadata.Artist,
+      status: metadata.Status,
+      synopsis,
       genres,
       shareUrl,
       isAdult,
+      bookId,
       warningUrl,
-      chapters: this.parseChapters($, mangaId, title),
-      additionalInfo,
+      chapters: this.parseChapters($, mangaId, title, bookId),
+      additionalInfo: metadata,
     }
   }
 
-  parseChapterPageResult(html: string, currentUrl: string): NineMangaChapterPageResult {
-    const $ = cheerio.load(html)
+  parseMobileSearch(items: NineMangaMobileSearchItem[]): SearchResultItem[] {
+    const results: SearchResultItem[] = []
 
-    // Important: prefer real page images over redirect/server links.
-    // Some NineManga mirror pages contain ad/intermediate anchors plus a valid all_imgs_url payload.
-    // Following the anchor first can send the reader to fake article/popup domains and lose the pages.
-    const allImageUrls = this.parseAllImageUrls(html, currentUrl)
-    if (allImageUrls.length > 0) {
-      return {
-        pages: allImageUrls.map((imageUrl, index) => ({
-          url: `${currentUrl}#page-${index + 1}`,
-          imageUrl,
-        })),
-      }
+    for (const item of items) {
+      const imageUrl = normalizeUrl(item[0], this.baseUrl)
+      const title = cleanText(item[1])
+      const url = normalizeUrl(item[2], this.baseUrl)
+      const author = cleanText(item[4])
+
+      if (!title || !url) continue
+
+      results.push({
+        mangaId: pathIdFromUrl(url, this.baseUrl),
+        title,
+        subtitle: author ? `by ${author}` : undefined,
+        imageUrl,
+        contentRating: ContentRating.MATURE,
+      })
     }
 
-    const readerImages = this.parseReaderImages($, currentUrl)
-    if (readerImages.length > 1) {
-      return {
-        pages: readerImages.map((imageUrl, index) => ({
-          url: `${currentUrl}#page-${index + 1}`,
-          imageUrl,
-        })),
-      }
-    }
-
-    const pageRefs = this.parsePageOptions($, currentUrl)
-    if (pageRefs.length > 0) return { pages: pageRefs }
-
-    if (readerImages.length === 1) {
-      return {
-        pages: readerImages.map((imageUrl, index) => ({
-          url: `${currentUrl}#page-${index + 1}`,
-          imageUrl,
-        })),
-      }
-    }
-
-    const nextUrl =
-      this.parseServerUrl($, currentUrl) ||
-      this.parseRedirectUrl(html, currentUrl) ||
-      this.parseMetaRefreshUrl($, currentUrl)
-
-    if (nextUrl) return { pages: [], nextUrl }
-
-    return { pages: [] }
+    return uniqueBy(
+      results,
+      (item) => item.mangaId
+    )
   }
 
   parseChapterPage(html: string, currentUrl: string): NineMangaChapterPage[] {
-    return this.parseChapterPageResult(html, currentUrl).pages
+    const $ = cheerio.load(html)
+    const imageUrl = this.normalizeImageUrl($('img.manga_pic[src]').first().attr('src'))
+    const normalizedCurrentUrl = normalizeUrl(currentUrl, this.baseUrl)
+    const pages: NineMangaChapterPage[] = []
+
+    $('select.sl-page option[value]').each((_, option) => {
+      const pageOption = $(option)
+      const pageUrl = normalizeUrl(pageOption.attr('value'), this.baseUrl)
+      if (!pageUrl) return
+
+      pages.push({
+        url: pageUrl,
+        imageUrl:
+          imageUrl && (pageOption.attr('selected') !== undefined || this.sameUrl(pageUrl, normalizedCurrentUrl))
+            ? imageUrl
+            : undefined,
+      })
+    })
+
+    if (pages.length > 0) return uniqueBy(pages, (page) => page.url)
+
+    const allImageUrls = uniqueStrings([
+      ...this.parseAllImageUrls(html),
+      ...this.parseInlineReaderImageUrls(html),
+    ])
+    if (allImageUrls.length > 0) {
+      return allImageUrls.map((imageUrl, index) => ({
+        url: `${currentUrl}#page-${index + 1}`,
+        imageUrl,
+      }))
+    }
+
+    const readerImages = this.parseReaderImages($)
+    if (readerImages.length > 1) {
+      return readerImages.map((imageUrl, index) => ({
+        url: `${currentUrl}#page-${index + 1}`,
+        imageUrl,
+      }))
+    }
+
+    if (imageUrl || readerImages[0]) {
+      pages.push({ url: normalizedCurrentUrl, imageUrl: imageUrl || readerImages[0] })
+    }
+
+    return uniqueBy(pages, (page) => page.url)
+  }
+
+  parseSourceSelectionUrl(html: string): string | undefined {
+    const $ = cheerio.load(html)
+    const href =
+      $('a.vision-button[href*="/go/jump/"]').first().attr('href') ||
+      $('a.vision-button[href*="/go/ennm/"]').first().attr('href') ||
+      $('a[href*="type=enninemanga"][href*="cid="]').first().attr('href') ||
+      $('a[href*="/go/ennm/"]').first().attr('href') ||
+      $('a[href*="/go/jump/"]').first().attr('href')
+
+    const cleaned = href?.replace(/&amp;/g, '&').trim()
+    const normalizedUrl = normalizeUrl(cleaned, this.baseUrl)
+    if (!normalizedUrl) return undefined
+
+    const allowed =
+      normalizedUrl.startsWith(this.baseUrl) ||
+      normalizedUrl.includes('/go/ennm/') ||
+      normalizedUrl.includes('/go/jump/') ||
+      normalizedUrl.includes('type=enninemanga')
+
+    return allowed ? normalizedUrl : undefined
+  }
+
+  parseExternalSourceChapterId(html: string): string | undefined {
+    const $ = cheerio.load(html)
+    const sourceUrl =
+      $('a.vision-button[href*="/go/jump/"]').first().attr('href') ||
+      $('a.vision-button[href*="/go/ennm/"]').first().attr('href') ||
+      $('a[href*="type=enninemanga"][href*="cid="]').first().attr('href') ||
+      $('a[href*="/go/ennm/"]').first().attr('href') ||
+      $('a.vision-button[href*="/go/"]').first().attr('href') ||
+      $('a[href*="/go/"][href*="cid="]').first().attr('href')
+
+    return this.parseExternalSourceChapterIdFromUrl(sourceUrl) || undefined
+  }
+
+  parseExternalSourceChapterIdFromUrl(sourceUrl: string | undefined): string {
+    if (!sourceUrl) return ''
+
+    const source = sourceUrl.replace(/&amp;/g, '&')
+    const queryId = source.match(/[?&]cid=([^&#/]+)/)?.[1]
+    const pathId = source.match(/\/go\/[^/?#]+\/(\d+)(?:[/?#]|$)/)?.[1]
+    const suffixId = source.match(/\/(\d+)\.html(?:[?#]|$)/)?.[1]
+    return queryId || pathId || suffixId || ''
   }
 
   parseImage(html: string, currentUrl = this.baseUrl): string | undefined {
@@ -164,7 +224,7 @@ export class NineMangaParser {
         secondaryTitles: [],
         thumbnailUrl: data.imageUrl,
         synopsis: data.synopsis,
-        contentRating: data.isAdult ? ContentRating.ADULT : this.contentRatingForGenres(data.genres),
+        contentRating: data.isAdult ? ContentRating.ADULT : ContentRating.MATURE,
         author: data.author,
         artist: data.artist,
         status: data.status,
@@ -175,286 +235,105 @@ export class NineMangaParser {
     }
   }
 
-  toSearchResult(item: NineMangaListingItem): SearchResultItem {
-    return {
-      mangaId: item.mangaId,
-      title: item.title,
-      subtitle: item.latestChapterTitle,
-      imageUrl: item.imageUrl,
-      contentRating: this.contentRatingForGenres(item.genres),
-    }
+  private parseMetadata($: cheerio.CheerioAPI): Record<string, string> {
+    const metadata: Record<string, string> = {}
+
+    $('dd.about-book p').each((_, element) => {
+      const row = $(element)
+      const label = cleanText(row.find('span').first().text()).replace(/:$/, '')
+      if (!label) return
+
+      row.find('span').first().remove()
+      metadata[label] = cleanText(row.text())
+    })
+
+    return metadata
   }
 
-  contentRatingForGenres(genres: string[]): ContentRating {
-    const normalized = genres.map((genre) => genre.toLowerCase())
-    if (normalized.some((genre) => ADULT_TAGS.has(genre))) return ContentRating.ADULT
-    if (normalized.some((genre) => MATURE_TAGS.has(genre))) return ContentRating.MATURE
-
-    return ContentRating.EVERYONE
-  }
-
-  imageHeaders(imageUrl: string): Record<string, string> | undefined {
-    return /img\d+\.niadd\.com/i.test(imageUrl)
-      ? { referer: this.baseUrl }
-      : undefined
-  }
-
-  private parseChapters($: CheerioAPI, mangaId: string, mangaTitle: string): Chapter[] {
-    const sourceManga: SourceManga = {
-      mangaId,
-      mangaInfo: {
-        primaryTitle: mangaTitle,
-        secondaryTitles: [],
-        thumbnailUrl: '',
-        synopsis: '',
-        contentRating: ContentRating.MATURE,
-      },
-    }
+  private parseChapters(
+    $: cheerio.CheerioAPI,
+    mangaId: string,
+    mangaTitle: string,
+    bookId: string
+  ): Chapter[] {
     const chapters: Chapter[] = []
 
-    $('ul.sub_vol_ul > li').each((index, element) => {
+    $('ul.chapter-box li').each((index, element) => {
       const item = $(element)
-      const anchor = item.find('a.chapter_list_a[href]').first()
-      const chapterUrl = normalizeUrl(anchor.attr('href'), this.baseUrl)
-      const title = this.cleanChapterTitle(cleanText(anchor.text()), mangaTitle)
+      const longAnchor = item.find('div.chapter-name.long a[href]').first()
+      const shortTitle = cleanText(item.find('div.chapter-name.short a').first().text()).replace(/\s*new$/i, '')
+      const chapterUrl = normalizeUrl(longAnchor.attr('href'), this.baseUrl)
+      const longTitle = cleanText(longAnchor.text()).replace(/\s*new$/i, '')
+      const title = longTitle || shortTitle
 
       if (!chapterUrl || !title) return
 
       chapters.push({
         chapterId: pathIdFromUrl(chapterUrl, this.baseUrl),
-        sourceManga,
+        sourceManga: {
+          mangaId,
+          mangaInfo: {
+            primaryTitle: mangaTitle,
+            secondaryTitles: [],
+            thumbnailUrl: '',
+            synopsis: '',
+            contentRating: ContentRating.MATURE,
+          },
+        },
         langCode: 'en',
-        chapNum: this.parseChapterNumber(title),
+        chapNum: this.parseChapterNumber(shortTitle || title),
         title,
-        publishDate: this.parseChapterDate(cleanText(item.find('span').first().text())),
         sortingIndex: index,
         additionalInfo: {
           url: chapterUrl,
+          bookId,
         },
       })
     })
 
-    return orderChaptersForReading(uniqueBy(chapters, (chapter) => chapter.chapterId))
+    return chapters
   }
 
-  private parseNextPageUrl($: CheerioAPI, currentUrl: string): string | undefined {
-    const href = $('ul.pageList > li:last-child > a.l[href]').first().attr('href')
-    return normalizeUrl(href, currentUrl) || undefined
-  }
+  private parseSynopsis($: cheerio.CheerioAPI): string {
+    let synopsis = ''
 
-  private parseServerUrl($: CheerioAPI, currentUrl: string): string {
-    const candidates = $('section.section div.post-content-body > a[href]')
-      .map((_, element) => $(element).attr('href') ?? '')
-      .get()
+    $('dd.short-info p').each((_, element) => {
+      const row = $(element)
+      const label = cleanText(row.find('b').first().text()).replace(/:$/, '').toLowerCase()
+      if (label !== 'summary') return
 
-    for (const candidate of candidates) {
-      const normalized = normalizeUrl(candidate, currentUrl)
-      if (!normalized) continue
-      if (/^(?:javascript|mailto|tel):/i.test(candidate)) continue
-      if (normalized === normalizeUrl(currentUrl, this.baseUrl)) continue
+      synopsis = cleanText(row.find('span').first().text())
+      if (synopsis) return false
 
-      return normalized
-    }
-
-    return ''
-  }
-
-  private parseRedirectUrl(html: string, currentUrl: string): string {
-    const patterns = [
-      /(?:window\.)?location(?:\.href)?\s*=\s*["']([^"']+)["']/i,
-      /(?:window\.)?location\.(?:replace|assign)\(\s*["']([^"']+)["']\s*\)/i,
-    ]
-
-    for (const pattern of patterns) {
-      const redirect = html.match(pattern)?.[1]
-      const normalized = normalizeUrl(this.decodeJsString(redirect ?? ''), currentUrl)
-      if (normalized) return normalized
-    }
-
-    return ''
-  }
-
-  private parseMetaRefreshUrl($: CheerioAPI, currentUrl: string): string {
-    const content = $('meta[http-equiv]').filter((_, element) => {
-      return /^refresh$/i.test($(element).attr('http-equiv') ?? '')
-    }).first().attr('content') ?? ''
-
-    const redirect = content.match(/url\s*=\s*([^;]+)/i)?.[1]?.trim().replace(/^["']|["']$/g, '')
-    return normalizeUrl(this.decodeHtmlEntities(redirect ?? ''), currentUrl)
-  }
-
-  private parsePageOptions($: CheerioAPI, currentUrl: string): NineMangaChapterPage[] {
-    const imageUrl = this.normalizeImageUrl(
-      $('div.pic_box img.manga_pic, img.manga_pic, .pic_box img').first().attr('src'),
-      currentUrl
-    )
-    const normalizedCurrentUrl = normalizeUrl(currentUrl, this.baseUrl)
-    const pages: NineMangaChapterPage[] = []
-
-    $('select#page option[value], select.sl-page option[value]').each((_, option) => {
-      const pageOption = $(option)
-      const pageUrl = normalizeUrl(pageOption.attr('value'), currentUrl)
-      if (!pageUrl) return
-
-      pages.push({
-        url: pageUrl,
-        imageUrl:
-          imageUrl && (pageOption.attr('selected') !== undefined || pageUrl === normalizedCurrentUrl)
-            ? imageUrl
-            : undefined,
-      })
+      row.find('b').first().remove()
+      synopsis = cleanText(row.text())
+      return false
     })
 
-    if (pages.length > 0) return uniqueBy(pages, (page) => page.url)
-
-    return imageUrl ? [{ url: normalizedCurrentUrl, imageUrl }] : []
+    return synopsis || safeText($, 'dd.short-info p span') || safeText($, 'dd.short-info span')
   }
 
-  private parseAllImageUrls(html: string, currentUrl: string): string[] {
-    const images: string[] = []
+  private parseGenres($: cheerio.CheerioAPI, metadata: Record<string, string>): string[] {
+    const genres = splitCommaList(metadata.Genres ?? '')
 
-    for (const match of html.matchAll(/["']?all_imgs_url["']?\s*[:=]\s*\[\s*([\s\S]*?)\s*,?\s*]/gi)) {
-      const rawArray = match[1] ?? ''
-      try {
-        const values = JSON.parse(`[${rawArray.replace(/,\s*$/, '')}]`) as unknown[]
-        for (const value of values) {
-          const imageUrl = this.normalizeImageUrl(typeof value === 'string' ? value : '', currentUrl)
-          if (this.isValidPageImage(imageUrl)) images.push(imageUrl)
-        }
-      } catch {
-        for (const imageMatch of rawArray.matchAll(/(["'])((?:\\.|(?!\1)[\s\S])*?)\1/g)) {
-          const imageUrl = this.normalizeImageUrl(this.decodeScriptUrl(imageMatch[2] ?? ''), currentUrl)
-          if (this.isValidPageImage(imageUrl)) images.push(imageUrl)
-        }
-      }
-    }
+    $('dd.short-info a[href*="/category/"]').each((_, element) => {
+      const label = cleanText($(element).text())
+      if (!label || NON_GENRE_LABELS.has(label)) return
 
-    return uniqueStrings(images)
-  }
-
-  private parseReaderImages($: CheerioAPI, currentUrl: string): string[] {
-    const images: string[] = []
-
-    $('div.pic_box img.manga_pic, img.manga_pic, .pic_box img, #manga img, .reader img, .chapter img, img[src*="niadd"], img[src*="blogspot"], img[src*="blogger"], img[src*="googleusercontent"]').each((_, element) => {
-      images.push(...this.imageUrlsFromAttributes($(element), currentUrl))
+      genres.push(label)
     })
 
-    $('img').each((_, element) => {
-      for (const imageUrl of this.imageUrlsFromAttributes($(element), currentUrl)) {
-        if (this.isValidPageImage(imageUrl)) images.push(imageUrl)
-      }
-    })
-
-    return uniqueStrings(images)
-  }
-
-  private imageUrlsFromAttributes(image: Cheerio<AnyNode>, currentUrl: string): string[] {
-    const images: string[] = []
-    const attributes = ['src', 'data-src', 'data-original', 'lazy-src', 'data-lazy-src', 'srcset', 'data-srcset']
-
-    for (const attribute of attributes) {
-      for (const imageUrl of this.imageUrlsFromValue(image.attr(attribute), currentUrl)) {
-        if (this.isValidPageImage(imageUrl)) images.push(imageUrl)
-      }
-    }
-
-    return images
-  }
-
-  private imageUrlsFromValue(value: string | undefined, currentUrl: string): string[] {
-    if (!value) return []
-
-    const decodedValue = this.decodeScriptUrl(value)
-    const images: string[] = []
-
-    for (const part of decodedValue.split(',')) {
-      const candidate = part.trim().split(/\s+/)[0]
-      const imageUrl = this.normalizeImageUrl(candidate, currentUrl)
-      if (imageUrl) images.push(imageUrl)
-    }
-
-    return images
-  }
-
-  private getImageUrl(image: Cheerio<AnyNode>, currentUrl: string): string {
-    const raw =
-      image.attr('src') ||
-      image.attr('data-src') ||
-      image.attr('data-original') ||
-      image.attr('lazy-src') ||
-      image.attr('data-lazy-src') ||
-      ''
-
-    return normalizeUrl(this.decodeHtmlEntities(raw), currentUrl)
-  }
-
-  private normalizeImageUrl(value: string | undefined, currentUrl = this.baseUrl): string {
-    return normalizeUrl(this.decodeScriptUrl(value ?? ''), currentUrl)
-  }
-
-  private isValidPageImage(url: string): boolean {
-    if (!url || BAD_IMAGE_PATTERN.test(url)) return false
-
-    const normalized = url.toLowerCase()
-
-    // Known NineManga image hosts/patterns first.
-    if (/img\d+\.niadd\.com/i.test(normalized)) return true
-    if (normalized.includes('niadd.com')) return true
-    if (normalized.includes('nineanime.com/files/')) return true
-    if (normalized.includes('.movietop.cc/')) return true
-    if (normalized.includes('blogger.googleusercontent.com')) return true
-    if (normalized.includes('bp.blogspot.com') || normalized.includes('blogspot.com')) return true
-    if (normalized.includes('googleusercontent.com')) return true
-
-    // Some mirrors expose comic pages under generic /comics/ paths.
-    if (normalized.includes('/comics/')) return /\.(?:webp|jpe?g|png|gif)(?:[?#].*)?$/i.test(normalized)
-
-    // Last fallback for all_imgs_url payloads on temporary mirror domains.
-    // Keep this only for direct image extensions and rely on BAD_IMAGE_PATTERN to reject ads/icons.
-    return /\.(?:webp|jpe?g|png|gif)(?:[?#].*)?$/i.test(normalized)
-  }
-
-  private cleanChapterTitle(title: string, mangaTitle: string): string {
-    const escapedTitle = mangaTitle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-    return cleanText(title.replace(new RegExp(`^${escapedTitle}\\s*`, 'i'), ''))
+    return uniqueStrings(genres)
   }
 
   private parseChapterNumber(title: string): number {
-    const chapter = title.match(/(?:ch(?:apter)?\.?\s*)?(\d+(?:\.\d+)?)/i)?.[1]
-    return chapter ? Number(chapter) : 0
+    const matches = [...title.matchAll(/(?:ch(?:apter)?\s*)?(\d+(?:\.\d+)?)/gi)]
+    const last = matches.length > 0 ? matches[matches.length - 1]?.[1] : undefined
+    return last ? Number(last) : 0
   }
 
-  private parseChapterDate(value: string): Date | undefined {
-    const text = cleanText(value)
-    const absolute = new Date(text)
-    if (text && !Number.isNaN(absolute.getTime())) return absolute
-
-    const ago = text.match(/(\d+)\s+(minute|minutes|hour|hours)\s+ago/i)
-    if (!ago) return undefined
-
-    const amount = Number(ago[1])
-    const multiplier = /^hour/i.test(ago[2]) ? 60 * 60 * 1000 : 60 * 1000
-    return new Date(Date.now() - amount * multiplier)
-  }
-
-  private normalizeStatus(value: string): string {
-    const normalized = value.toLowerCase()
-    if (/ongoing|in corso/.test(normalized)) return 'ongoing'
-    if (/completed|completato/.test(normalized)) return 'completed'
-
-    return 'unknown'
-  }
-
-  private titleFromDocument($: CheerioAPI): string {
-    return cleanText($('title').first().text().replace(/\s+Manga.*$/i, ''))
-  }
-
-  private titleFromMangaId(mangaId: string): string {
-    const slug = mangaId.match(/\/manga\/([^/?#]+)\.html/i)?.[1] ?? mangaId
-    return decodeURIComponent(slug)
-      .replace(/[-_]+/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim()
+  private parseBookId(html: string): string {
+    return html.match(/\bbook_id\s*=\s*["']?(\d+)/)?.[1] ?? ''
   }
 
   private hasAdultTags(genres: string[]): boolean {
@@ -470,26 +349,120 @@ export class NineMangaParser {
     return tags.length > 0 ? [{ id: 'genres', title: 'Genres', tags }] : []
   }
 
+  private sameUrl(left: string, right: string): boolean {
+    return normalizeUrl(left, this.baseUrl) === normalizeUrl(right, this.baseUrl)
+  }
+
+  private parseAllImageUrls(html: string): string[] {
+    const images: string[] = []
+    const match = html.match(/all_imgs_url\s*:\s*\[([\s\S]*?)\]/)
+    if (!match?.[1]) return images
+
+    for (const imageMatch of match[1].matchAll(/["']([^"']+\.(?:webp|jpe?g|png)(?:\?[^"']*)?)["']/gi)) {
+      const imageUrl = this.normalizeImageUrl(imageMatch[1])
+      if (imageUrl) images.push(imageUrl)
+    }
+
+    return uniqueStrings(images)
+  }
+
+  private parseReaderImages($: cheerio.CheerioAPI): string[] {
+    const images: string[] = []
+
+    $('img.manga_pic').each((_, element) => {
+      const image = $(element)
+      images.push(...this.imageUrlsFromAttributes(image, false))
+    })
+
+    $('img').each((_, element) => {
+      const image = $(element)
+      images.push(...this.imageUrlsFromAttributes(image, true))
+    })
+
+    return uniqueStrings(images)
+  }
+
+  private imageUrlsFromAttributes(image: cheerio.Cheerio<AnyNode>, requireReaderPath: boolean): string[] {
+    const images: string[] = []
+    const attributes = [
+      'src',
+      'data-src',
+      'data-original',
+      'lazy-src',
+      'data-lazy-src',
+      'srcset',
+      'data-srcset',
+      'data-lazy-srcset',
+    ]
+
+    for (const attribute of attributes) {
+      for (const imageUrl of this.imageUrlsFromValue(image.attr(attribute))) {
+        if (!requireReaderPath || this.isReaderImageUrl(imageUrl)) images.push(imageUrl)
+      }
+    }
+
+    return images
+  }
+
+  private imageUrlsFromValue(value: string | undefined): string[] {
+    const images: string[] = []
+    if (!value) return images
+
+    const decodedValue = this.decodeHtmlEntities(value)
+
+    for (const match of decodedValue.matchAll(/(?:https?:)?\/\/[^\s"',<>]+\.(?:webp|jpe?g|png)(?:\?[^"',<>\s]*)?/gi)) {
+      const imageUrl = this.normalizeImageUrl(match[0])
+      if (this.isImageUrl(imageUrl)) images.push(imageUrl)
+    }
+
+    if (images.length > 0) return images
+
+    const firstPart = decodedValue.split(/\s+/)[0]
+    const imageUrl = this.normalizeImageUrl(firstPart)
+    return this.isImageUrl(imageUrl) ? [imageUrl] : []
+  }
+
+  private isImageUrl(url: string): boolean {
+    return /\.(?:webp|jpe?g|png)(?:[?#].*)?$/i.test(url)
+  }
+
+  private isReaderImageUrl(url: string): boolean {
+    const normalized = url.toLowerCase()
+    return (
+      normalized.includes('/comics/') ||
+      normalized.includes('.movietop.cc/') ||
+      normalized.includes('nineanime.com/files/')
+    )
+  }
+
+  private parseInlineReaderImageUrls(html: string): string[] {
+    const images: string[] = []
+    const decodedHtml = this.decodeHtmlEntities(html)
+
+    for (const match of decodedHtml.matchAll(/(?:https?:)?\/\/[^\s"',<>]+\.(?:webp|jpe?g|png)(?:\?[^"',<>\s]*)?/gi)) {
+      const imageUrl = this.normalizeImageUrl(match[0])
+      if (this.isImageUrl(imageUrl) && this.isReaderImageUrl(imageUrl)) images.push(imageUrl)
+    }
+
+    return uniqueStrings(images)
+  }
+
+  private normalizeImageUrl(value: string | undefined): string {
+    return normalizeUrl(this.decodeHtmlEntities(value ?? ''), this.baseUrl)
+  }
+
   private decodeHtmlEntities(value: string): string {
     return value
       .replace(/&amp;/g, '&')
       .replace(/&quot;/g, '"')
       .replace(/&#039;/g, "'")
       .replace(/&apos;/g, "'")
-      .replace(/&nbsp;/g, ' ')
   }
 
-  private decodeJsString(value: string): string {
-    return this.decodeScriptUrl(value)
+  private chapterIdFromExternalSource(sourceUrl: string | undefined): string {
+    if (!sourceUrl) return ''
+
+    return this.parseExternalSourceChapterIdFromUrl(sourceUrl)
   }
 
-  private decodeScriptUrl(value: string): string {
-    return this.decodeHtmlEntities(value)
-      .trim()
-      .replace(/^["']|["']$/g, '')
-      .replace(/\\u([0-9a-f]{4})/gi, (_, hex: string) => String.fromCharCode(parseInt(hex, 16)))
-      .replace(/\\x([0-9a-f]{2})/gi, (_, hex: string) => String.fromCharCode(parseInt(hex, 16)))
-      .replace(/\\\//g, '/')
-      .replace(/\\\\/g, '\\')
-  }
 }
