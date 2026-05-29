@@ -17,12 +17,10 @@ import { normalizeUrl, pathIdFromUrl, withQueryParam } from '../common/utils/url
 import { getText, type TextResponse } from './NineMangaHttp'
 import type {
   NineMangaChapterPage,
-  NineMangaGenre,
   NineMangaListingConfig,
   NineMangaListingItem,
   NineMangaMangaData,
   NineMangaPageMetadata,
-  NineMangaSearchMetadata,
   NineMangaSectionId,
 } from './NineMangaModels'
 import { NineMangaParser } from './NineMangaParser'
@@ -61,19 +59,6 @@ const SECTIONS: NineMangaListingConfig[] = [
   },
 ]
 
-const GENRES: NineMangaGenre[] = [
-  { id: 'action', title: 'Action', path: '/category/Action_1.html' },
-  { id: 'adventure', title: 'Adventure', path: '/category/Adventure_1.html' },
-  { id: 'comedy', title: 'Comedy', path: '/category/Comedy_1.html' },
-  { id: 'drama', title: 'Drama', path: '/category/Drama_1.html' },
-  { id: 'fantasy', title: 'Fantasy', path: '/category/Fantasy_1.html' },
-  { id: 'romance', title: 'Romance', path: '/category/Romance_1.html' },
-  { id: 'shoujo', title: 'Shoujo', path: '/category/Shoujo_1.html' },
-  { id: 'shounen', title: 'Shounen', path: '/category/Shounen_1.html' },
-  { id: 'slice-of-life', title: 'Slice of Life', path: '/category/Slice-of-Life_1.html' },
-  { id: 'supernatural', title: 'Supernatural', path: '/category/Supernatural_1.html' },
-]
-
 export class NineMangaClient {
   private readonly parser = new NineMangaParser(BASE_URL)
   private readonly htmlCache = new Map<string, CacheEntry<TextResponse>>()
@@ -94,6 +79,8 @@ export class NineMangaClient {
 
   async getChapterDetails(chapter: Chapter): Promise<ChapterDetails> {
     const chapterUrl = normalizeUrl(chapter.additionalInfo?.url ?? chapter.chapterId, BASE_URL)
+    if (!chapterUrl) throw new Error('Invalid NineManga chapter URL')
+
     const pageRefs = await this.resolveChapterPageRefs(chapterUrl, BASE_URL, 0, new Set<string>())
     const pages: string[] = []
 
@@ -104,7 +91,7 @@ export class NineMangaClient {
       }
 
       const pageHtml = await this.getHtml(pageRef.url, chapterUrl)
-      const imageUrl = this.parser.parseImage(pageHtml.body)
+      const imageUrl = this.parser.parseImage(pageHtml.body, pageHtml.url)
       if (imageUrl) pages.push(imageUrl)
     }
 
@@ -120,50 +107,24 @@ export class NineMangaClient {
   }
 
   async getDiscoverSections(): Promise<DiscoverSection[]> {
-    return [
-      ...SECTIONS.map((section) => ({
-        id: section.id,
-        title: section.title,
-        subtitle: this.sectionSubtitle(section.id),
-        type: this.sectionType(section.id),
-      })),
-      {
-        id: 'genres',
-        title: 'Browse by Genre',
-        subtitle: 'Quick access to NineManga categories',
-        type: DiscoverSectionType.genres,
-      },
-    ]
+    return SECTIONS.map((section) => ({
+      id: section.id,
+      title: section.title,
+      subtitle: this.sectionSubtitle(section.id),
+      type: this.sectionType(section.id),
+    }))
   }
 
   async getDiscoverSectionItems(
     section: DiscoverSection,
     metadata: Metadata | undefined
   ): Promise<PagedResults<DiscoverSectionItem>> {
-    if (section.id === 'genres') {
-      return {
-        items: GENRES.map((genre) => ({
-          type: 'genresCarouselItem',
-          name: genre.title,
-          searchQuery: {
-            title: '',
-            metadata: {
-              genrePath: genre.path,
-              genreTitle: genre.title,
-            } satisfies NineMangaSearchMetadata,
-          },
-        })),
-        metadata: undefined,
-      }
-    }
-
     const config = SECTIONS.find((candidate) => candidate.id === section.id)
     if (!config) return EndOfPageResults
 
     const url = this.readNextUrl(metadata) || normalizeUrl(config.path, BASE_URL)
     const response = await this.getHtml(url)
     const page = this.parser.parseListingPage(response.body, response.url)
-    console.log(`[NineManga] Discover section ${section.id} returned: ${page.items.length}`)
     if (page.items.length === 0) return EndOfPageResults
 
     return {
@@ -174,30 +135,28 @@ export class NineMangaClient {
 
   async getSearchResults(
     title: string,
-    queryMetadata: Metadata | undefined,
-    pageMetadata: Metadata | undefined
+    metadata: Metadata | undefined
   ): Promise<PagedResults<SearchResultItem>> {
     const query = title.trim()
-    const searchMetadata = queryMetadata as NineMangaSearchMetadata | undefined
-    const nextUrl = this.readNextUrl(pageMetadata)
-    const url = nextUrl || this.searchUrl(query, searchMetadata)
+    if (!query) {
+      const response = await this.getHtml(SECTIONS[0].path)
+      const latest = this.parser.parseListingPage(response.body, response.url)
+      return {
+        items: latest.items.map((item) => this.parser.toSearchResult(item)),
+        metadata: undefined,
+      }
+    }
+
+    const url =
+      this.readNextUrl(metadata) ||
+      `${normalizeUrl('/search/', BASE_URL)}?wd=${encodeURIComponent(query)}&page=1&type=high`
     const response = await this.getHtml(url)
     const page = this.parser.parseListingPage(response.body, response.url)
-
-    console.log(`[NineManga] Search/listing results returned: ${page.items.length}`)
 
     return {
       items: page.items.map((item) => this.parser.toSearchResult(item)),
       metadata: page.nextUrl ? { nextUrl: page.nextUrl } satisfies NineMangaPageMetadata : undefined,
     }
-  }
-
-  private searchUrl(query: string, metadata: NineMangaSearchMetadata | undefined): string {
-    if (query) return `${normalizeUrl('/search/', BASE_URL)}?wd=${encodeURIComponent(query)}&page=1&type=high`
-
-    if (metadata?.genrePath) return normalizeUrl(metadata.genrePath, BASE_URL)
-
-    return normalizeUrl(SECTIONS[0].path, BASE_URL)
   }
 
   private async getMangaData(mangaId: string): Promise<NineMangaMangaData> {
@@ -280,7 +239,6 @@ export class NineMangaClient {
   private sectionType(sectionId: string): DiscoverSectionType {
     if (sectionId === 'featured') return DiscoverSectionType.featured
     if (sectionId === 'latest') return DiscoverSectionType.chapterUpdates
-    if (sectionId === 'genres') return DiscoverSectionType.genres
 
     return DiscoverSectionType.prominentCarousel
   }
@@ -293,8 +251,6 @@ export class NineMangaClient {
         return 'Latest chapter updates'
       case 'popular':
         return 'Browse the main catalog'
-      case 'genres':
-        return 'Quick access to categories'
       default:
         return ''
     }
@@ -307,8 +263,6 @@ export class NineMangaClient {
 
     const pendingRequest = this.htmlRequests.get(normalizedUrl)
     if (pendingRequest) return pendingRequest
-
-    if (!normalizedUrl) throw new Error('NineManga request failed: invalid URL')
 
     const request = getText(normalizedUrl, this.headers(normalizedUrl, referer))
       .then((response) => {
@@ -383,5 +337,5 @@ export class NineMangaClient {
 }
 
 export function isNineMangaSectionId(value: string): value is NineMangaSectionId {
-  return value === 'genres' || SECTIONS.some((section) => section.id === value)
+  return SECTIONS.some((section) => section.id === value)
 }

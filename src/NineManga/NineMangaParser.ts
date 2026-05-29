@@ -36,7 +36,7 @@ export class NineMangaParser {
       const item = $(element)
       const mangaAnchor = item.find('a.bookname[href]').first()
       const mangaUrl = normalizeUrl(mangaAnchor.attr('href'), currentUrl)
-      const title = this.normalizeMangaTitle(cleanText(mangaAnchor.text()) || cleanText(mangaAnchor.attr('title')))
+      const title = cleanText(mangaAnchor.text()) || cleanText(mangaAnchor.attr('title'))
 
       if (!mangaUrl || !title) return
 
@@ -48,7 +48,7 @@ export class NineMangaParser {
         title,
         imageUrl: normalizeUrl(this.getImageUrl(item.find('img').first(), currentUrl), currentUrl),
         url: mangaUrl,
-        genres: this.parseListingGenres($, item),
+        genres: [],
         latestChapterId: chapterUrl ? pathIdFromUrl(chapterUrl, this.baseUrl) : undefined,
         latestChapterTitle: cleanText(chapterAnchor.text()) || undefined,
       })
@@ -72,7 +72,7 @@ export class NineMangaParser {
       cleanText(root.find('h1, h2').first().text()) ||
       this.titleFromDocument($) ||
       this.titleFromMangaId(mangaId)
-    const title = this.normalizeMangaTitle(rawTitle)
+    const title = cleanText(rawTitle.replace(/\s+Manga$/i, ''))
     const genres = uniqueStrings(root.find('li[itemprop="genre"] a').map((_, element) => cleanText($(element).text())).get())
     const author = cleanText(root.find('li a[itemprop="author"]').first().text())
     const status = this.normalizeStatus(cleanText(root.find('li a.red').first().text()))
@@ -89,7 +89,7 @@ export class NineMangaParser {
       imageUrl: normalizeUrl(this.getImageUrl(root.find('img[itemprop="image"]').first(), shareUrl), shareUrl),
       author,
       status,
-      synopsis: this.cleanSynopsis(root.find('p[itemprop="description"]').first().text()),
+      synopsis: cleanText(root.find('p[itemprop="description"]').first().text()),
       genres,
       shareUrl,
       isAdult,
@@ -151,9 +151,9 @@ export class NineMangaParser {
     return this.parseChapterPageResult(html, currentUrl).pages
   }
 
-  parseImage(html: string): string | undefined {
+  parseImage(html: string, currentUrl = this.baseUrl): string | undefined {
     const $ = cheerio.load(html)
-    return this.parseAllImageUrls(html, this.baseUrl)[0] || this.parseReaderImages($, this.baseUrl)[0] || undefined
+    return this.parseAllImageUrls(html, currentUrl)[0] || this.parseReaderImages($, currentUrl)[0] || undefined
   }
 
   toSourceManga(data: NineMangaMangaData): SourceManga {
@@ -238,25 +238,8 @@ export class NineMangaParser {
   }
 
   private parseNextPageUrl($: CheerioAPI, currentUrl: string): string | undefined {
-    const directNext = $(
-      'a[rel="next"][href], a.next[href], ul.pageList a.l[href]:last, .pagination a[href]:last'
-    )
-      .first()
-      .attr('href')
-    const normalizedDirectNext = normalizeUrl(directNext, currentUrl)
-    if (normalizedDirectNext && normalizedDirectNext !== normalizeUrl(currentUrl, this.baseUrl)) {
-      return normalizedDirectNext
-    }
-
-    const textNext = $('a[href]')
-      .filter((_, element) => /^(?:next|›|»|>)$/i.test(cleanText($(element).text())))
-      .first()
-      .attr('href')
-
-    const normalizedTextNext = normalizeUrl(textNext, currentUrl)
-    return normalizedTextNext && normalizedTextNext !== normalizeUrl(currentUrl, this.baseUrl)
-      ? normalizedTextNext
-      : undefined
+    const href = $('ul.pageList > li:last-child > a.l[href]').first().attr('href')
+    return normalizeUrl(href, currentUrl) || undefined
   }
 
   private parseServerUrl($: CheerioAPI, currentUrl: string): string {
@@ -433,8 +416,7 @@ export class NineMangaParser {
 
   private cleanChapterTitle(title: string, mangaTitle: string): string {
     const escapedTitle = mangaTitle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-    const withoutMangaTitle = title.replace(new RegExp(`^${escapedTitle}\\s*(?:[-–—:]\\s*)?`, 'i'), '')
-    return cleanText(withoutMangaTitle.replace(/\s*[-–—:]?\s*(?:NineManga|Read Online).*$/i, ''))
+    return cleanText(title.replace(new RegExp(`^${escapedTitle}\\s*`, 'i'), ''))
   }
 
   private parseChapterNumber(title: string): number {
@@ -447,27 +429,12 @@ export class NineMangaParser {
     const absolute = new Date(text)
     if (text && !Number.isNaN(absolute.getTime())) return absolute
 
-    const ago = text.match(/(\d+)\s+(minute|minutes|hour|hours|day|days|week|weeks|month|months|year|years)\s+ago/i)
+    const ago = text.match(/(\d+)\s+(minute|minutes|hour|hours)\s+ago/i)
     if (!ago) return undefined
 
     const amount = Number(ago[1])
-    const unit = ago[2].toLowerCase()
-    const multipliers: Record<string, number> = {
-      minute: 60 * 1000,
-      minutes: 60 * 1000,
-      hour: 60 * 60 * 1000,
-      hours: 60 * 60 * 1000,
-      day: 24 * 60 * 60 * 1000,
-      days: 24 * 60 * 60 * 1000,
-      week: 7 * 24 * 60 * 60 * 1000,
-      weeks: 7 * 24 * 60 * 60 * 1000,
-      month: 30 * 24 * 60 * 60 * 1000,
-      months: 30 * 24 * 60 * 60 * 1000,
-      year: 365 * 24 * 60 * 60 * 1000,
-      years: 365 * 24 * 60 * 60 * 1000,
-    }
-
-    return new Date(Date.now() - amount * multipliers[unit])
+    const multiplier = /^hour/i.test(ago[2]) ? 60 * 60 * 1000 : 60 * 1000
+    return new Date(Date.now() - amount * multiplier)
   }
 
   private normalizeStatus(value: string): string {
@@ -475,43 +442,7 @@ export class NineMangaParser {
     if (/ongoing|in corso/.test(normalized)) return 'ongoing'
     if (/completed|completato/.test(normalized)) return 'completed'
 
-    return ''
-  }
-
-  private parseListingGenres($: CheerioAPI, item: Cheerio<AnyNode>): string[] {
-    const labelText = item
-      .find('dd, p, span')
-      .map((_, element) => cleanText($(element).text()))
-      .get()
-      .join(' ')
-
-    const linkedGenres = item
-      .find('a[href*="/category/"]')
-      .map((_, element) => cleanText($(element).text()))
-      .get()
-
-    const labelGenres = labelText.match(/(?:genres?|category)\s*:?\s*([^|]+?)(?:\s{2,}|latest|chapter|update|$)/i)?.[1] ?? ''
-
-    return uniqueStrings([
-      ...linkedGenres,
-      ...labelGenres.split(/[,/]/).map((genre) => cleanText(genre)),
-    ]).filter((genre) => !/^genres?$/i.test(genre))
-  }
-
-  private normalizeMangaTitle(value: string): string {
-    return cleanText(
-      this.decodeHtmlEntities(value)
-        .replace(/\s+(?:Manga|Manhua|Manhwa)(?:\s+Online)?$/i, '')
-        .replace(/\s*[-–—:]\s*(?:NineManga|Read Online).*$/i, '')
-    )
-  }
-
-  private cleanSynopsis(value: string): string {
-    return cleanText(
-      this.decodeHtmlEntities(value)
-        .replace(/\s*Summary\s*:?\s*/i, '')
-        .replace(/\s*Read\s+.+?\s+Manga\s+Online.*$/i, '')
-    )
+    return 'unknown'
   }
 
   private titleFromDocument($: CheerioAPI): string {
