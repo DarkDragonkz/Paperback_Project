@@ -79,6 +79,8 @@ export class NineMangaClient {
 
   async getChapterDetails(chapter: Chapter): Promise<ChapterDetails> {
     const chapterUrl = normalizeUrl(chapter.additionalInfo?.url ?? chapter.chapterId, BASE_URL)
+    if (!chapterUrl) throw new Error('Invalid NineManga chapter URL')
+
     const pageRefs = await this.resolveChapterPageRefs(chapterUrl, BASE_URL, 0, new Set<string>())
     const pages: string[] = []
 
@@ -89,7 +91,7 @@ export class NineMangaClient {
       }
 
       const pageHtml = await this.getHtml(pageRef.url, chapterUrl)
-      const imageUrl = this.parser.parseImage(pageHtml.body)
+      const imageUrl = this.parser.parseImage(pageHtml.body, pageHtml.url)
       if (imageUrl) pages.push(imageUrl)
     }
 
