@@ -68,6 +68,13 @@ interface FinanceReaderInfo {
   chapterId: string
 }
 
+interface FinanceRedirectInfo {
+  chapterId: string
+  readerPageId: string
+  readerUrl: string
+  location: string
+}
+
 const SECTIONS: NineMangaListingConfig[] = [
   {
     id: 'latest',
@@ -584,6 +591,7 @@ export class NineMangaClient {
     if (financeJumpChapterId) {
       if (!state.chapterId) state.chapterId = financeJumpChapterId
       console.log(`[NineManga] Finance jump chapterId: ${financeJumpChapterId}`)
+      console.log(`[NineManga] Finance jump no-follow request: ${normalizedUrl}`)
     }
 
     console.log(`[NineManga] Gate request: ${normalizedUrl} referer=${referer}`)
@@ -599,14 +607,32 @@ export class NineMangaClient {
 
     console.log(`[NineManga] Gate response: status=${response.status} url=${response.url}`)
     console.log(`[NineManga] Gate redirect location: ${location || 'none'}`)
-    if (financeJumpChapterId) console.log(`[NineManga] Finance jump response url: ${response.url}`)
+    if (financeJumpChapterId) {
+      console.log(`[NineManga] Finance jump response url: ${response.url}`)
+      console.log(`[NineManga] Finance jump redirect status: ${response.status}`)
+      console.log(`[NineManga] Finance jump redirect location: ${location || 'none'}`)
+    }
     if (this.isFinanceMasterProUrl(normalizedUrl) || this.isFinanceMasterProUrl(response.url)) {
       console.log(`[NineManga] Finance response headers: ${this.headersForLog(response.headers)}`)
       this.logFinanceBodyHints(body)
     }
 
     if (location && response.status >= 300 && response.status < 400 && redirectCount < MAX_GATE_REDIRECTS) {
-      const nextUrl = normalizeUrl(location, response.url || normalizedUrl)
+      const financeRedirectInfo = financeJumpChapterId
+        ? this.financeRedirectInfoFromLocation(location, financeJumpChapterId, response.url || normalizedUrl)
+        : undefined
+      if (financeRedirectInfo) {
+        state.financePostId = financeRedirectInfo.readerPageId
+        state.financeReaderInfoDetected = true
+        this.rememberFinanceReaderPageId(financeRedirectInfo.readerUrl, state)
+        console.log(
+          `[NineManga] Finance reader page id from redirect: chapterId=${financeRedirectInfo.chapterId} readerPageId=${financeRedirectInfo.readerPageId}`
+        )
+        console.log(`[NineManga] Finance reader url from redirect: ${financeRedirectInfo.readerUrl}`)
+        console.log(`[NineManga] Finance final reader request: ${financeRedirectInfo.readerUrl}`)
+      }
+
+      const nextUrl = financeRedirectInfo?.readerUrl ?? normalizeUrl(location, response.url || normalizedUrl)
       const redirected = await this.getGateHtml(nextUrl, referer, state, redirectCount + 1)
       if (redirected) {
         console.log(`[NineManga] Gate final URL: ${redirected.url}`)
@@ -638,6 +664,7 @@ export class NineMangaClient {
       console.log(`[NineManga] Finance alternate reader url: ${candidate}`)
       const candidateReaderInfo = this.financeReaderInfoFromUrl(candidate, state.chapterId ?? '')
       const isChapterEndpoint = this.isFinanceChapterEndpointUrl(candidate)
+      const isFinanceJump = Boolean(this.financeChapterIdFromJumpUrl(candidate))
       if (candidateReaderInfo) {
         console.log(`[NineManga] Finance canonical reader request: ${candidate}`)
         this.allowOneFinanceCanonicalCookieRetry(candidate, state)
@@ -651,6 +678,7 @@ export class NineMangaClient {
       if (isChapterEndpoint) {
         console.log(`[NineManga] Finance chapter endpoint response url: ${response.url}`)
       }
+      const responseReaderInfo = this.financeReaderInfoFromUrl(response.url, state.chapterId ?? '')
 
       const markers = this.parser.parseExternalReaderMarkers(
         response.body,
@@ -666,6 +694,11 @@ export class NineMangaClient {
       console.log(
         `[NineManga] Finance alternate markers: allImgs=${markers.allImgs} mangaPic=${markers.mangaPic} bookId=${markers.bookId} chapterId=${markers.chapterId} movietop=${markers.movietop}`
       )
+      if (candidateReaderInfo || responseReaderInfo || isFinanceJump) {
+        console.log(
+          `[NineManga] Finance final reader markers: allImgs=${markers.allImgs} mangaPic=${markers.mangaPic} bookId=${markers.bookId} chapterId=${markers.chapterId} movietop=${markers.movietop}`
+        )
+      }
 
       if (this.hasExternalReaderMarkers(markers)) return response
     }
@@ -709,7 +742,7 @@ export class NineMangaClient {
 
     if (postId && !state.financePostId) state.financePostId = postId
 
-    if (!readerInfo && state.financePostId && state.chapterId) {
+    if (state.financePostId && state.chapterId) {
       state.financeReaderInfoDetected = true
       candidates.push(this.financeChapterEndpointUrl(state.chapterId, false))
       candidates.push(this.financeChapterEndpointUrl(state.chapterId, true))
@@ -778,6 +811,9 @@ export class NineMangaClient {
   private financeFallbackReaderPageIdForChapter(chapterId: string | undefined): string {
     if (chapterId === '779034') return '46013'
     if (chapterId === '779035') return '46284'
+    if (chapterId === '779842') return '46372'
+    if (chapterId === '779843') return '46620'
+    if (chapterId === '6220291') return '691735'
     return ''
   }
 
@@ -808,6 +844,24 @@ export class NineMangaClient {
       return decodeURIComponent(rawChapterId)
     } catch {
       return rawChapterId
+    }
+  }
+
+  private financeRedirectInfoFromLocation(
+    location: string,
+    chapterId: string,
+    baseUrl: string
+  ): FinanceRedirectInfo | undefined {
+    const readerUrl = normalizeUrl(location, baseUrl || FINANCE_MASTER_PRO_BASE_URL)
+      .replace('://financemasterpro.com', '://www.financemasterpro.com')
+    const readerInfo = this.financeReaderInfoFromUrl(readerUrl, chapterId)
+    if (!readerInfo) return undefined
+
+    return {
+      chapterId,
+      readerPageId: readerInfo.financePostId,
+      readerUrl: readerInfo.canonicalReaderUrl,
+      location,
     }
   }
 

@@ -11,6 +11,7 @@ import type {
   Metadata,
   PagedResults,
   Request,
+  Response,
   SearchQuery,
   SearchResultItem,
   SearchResultsProviding,
@@ -54,6 +55,7 @@ class NineMangaExtension
 
   async initialise(): Promise<void> {
     this.imageInterceptor.registerInterceptor()
+    Application.setRedirectHandler(Application.Selector(this, 'handleRedirect' as never))
     console.log(`[NineManga] Initialising source ${SOURCE_VERSION}`)
     if (!this.cookieStorageRegistered) {
       this.cookieStorage.registerInterceptor()
@@ -93,6 +95,21 @@ class NineMangaExtension
         'user-agent': await Application.getDefaultUserAgent(),
       },
     }
+  }
+
+  async handleRedirect(proposedRequest: Request, redirectedResponse: Response): Promise<Request | undefined> {
+    if (this.isFinanceJumpRedirect(redirectedResponse)) return undefined
+    return proposedRequest
+  }
+
+  private isFinanceJumpRedirect(response: Response): boolean {
+    return (
+      response.status >= 300 &&
+      response.status < 400 &&
+      /^https?:\/\/(?:www\.)?financemasterpro\.com\/go\/jump\/?/i.test(response.url) &&
+      /[?&]type=enninemanga(?:&|$)/i.test(response.url) &&
+      /[?&]cid=[^&#]+/i.test(response.url)
+    )
   }
 
   async getMangaDetails(mangaId: string): Promise<SourceManga> {
