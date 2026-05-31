@@ -1,4 +1,4 @@
-import { Form, Section, SelectRow } from '@paperback/types'
+import { Form, NavigationRow, Section, SelectRow } from '@paperback/types'
 
 import {
   NINEMANGA_LANGUAGE_CONFIGS,
@@ -26,7 +26,11 @@ function isNineMangaLanguageId(value: unknown): value is NineMangaLanguageId {
   )
 }
 
-export class NineMangaSettingsForm extends Form {
+function selectedLanguageLabel(): string {
+  return NINEMANGA_LANGUAGE_CONFIGS[readNineMangaLanguageSetting()].label
+}
+
+class NineMangaLanguageSettingsForm extends Form {
   private readonly languageOptions = Object.values(NINEMANGA_LANGUAGE_CONFIGS).map((cfg) => ({
     id: cfg.id,
     title: cfg.label,
@@ -36,19 +40,19 @@ export class NineMangaSettingsForm extends Form {
     return [
       Section(
         {
-          id: 'ninemanga_settings',
+          id: 'ninemanga_language_settings',
           footer: 'Select the NineManga language/region used by this source.',
         },
         [
           SelectRow(NINEMANGA_LANGUAGE_STATE_KEY, {
             title: 'Language',
-            subtitle: 'Choose which NineManga site this source should use',
+            subtitle: selectedLanguageLabel(),
             value: [readNineMangaLanguageSetting()],
             options: this.languageOptions,
             minItemCount: 1,
             maxItemCount: 1,
             onValueChange: Application.Selector(
-              this as NineMangaSettingsForm,
+              this as NineMangaLanguageSettingsForm,
               'handleLanguageChange'
             ),
           }),
@@ -68,5 +72,25 @@ export class NineMangaSettingsForm extends Form {
 
     this.reloadForm()
     Application.invalidateDiscoverSections()
+  }
+}
+
+export class NineMangaSettingsForm extends Form {
+  override getSections() {
+    return [
+      Section(
+        {
+          id: 'ninemanga_settings',
+          footer: 'NineManga settings',
+        },
+        [
+          NavigationRow('ninemanga_language', {
+            title: 'Language',
+            subtitle: selectedLanguageLabel(),
+            form: new NineMangaLanguageSettingsForm(),
+          }),
+        ]
+      ),
+    ]
   }
 }
