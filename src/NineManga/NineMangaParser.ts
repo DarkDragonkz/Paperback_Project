@@ -51,7 +51,7 @@ export interface NineMangaExternalReaderMarkers {
 }
 
 export class NineMangaParser {
-  constructor(private readonly baseUrl: string) {}
+  constructor(private readonly baseUrl: string, private readonly langCode = 'en') {}
 
   parseListing(html: string): NineMangaListingItem[] {
     const $ = cheerio.load(html)
@@ -444,7 +444,7 @@ export class NineMangaParser {
             contentRating: ContentRating.MATURE,
           },
         },
-        langCode: 'en',
+        langCode: this.langCode,
         chapNum: this.parseChapterNumber(shortTitle || title),
         title,
         sortingIndex: index,

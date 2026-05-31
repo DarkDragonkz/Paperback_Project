@@ -1,4 +1,5 @@
 import { CookieStorageInterceptor, type Cookie } from '@paperback/types'
+import { getNineMangaLanguageConfig, type NineMangaLanguageConfig } from './NineMangaLanguageConfig'
 import type {
   Chapter,
   ChapterDetails,
@@ -24,15 +25,30 @@ import { resetCloudflareBypassState } from '../common/http/request'
 import { NineMangaClient } from './NineMangaClient'
 
 const SOURCE_VERSION = '1.1.0'
-const BASE_URL = 'https://www.ninemanga.com/'
-const COOKIE_DOMAIN = 'ninemanga.com'
 const CLOUDFLARE_COOKIE_TTL_MS = 7 * 24 * 60 * 60 * 1000
 const MOBILE_USER_AGENT =
   'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1'
-const IMAGE_HEADERS = {
+
+function readLanguageSetting(): NineMangaLanguageConfig['id'] {
+  let id: NineMangaLanguageConfig['id'] = 'en'
+  try {
+    // Best-effort: try a couple of Application APIs if available
+    // @ts-ignore
+    const settings = (Application as any).getSettings?.() || (Application as any).getSourceSettings?.() || (Application as any).getPreferences?.()
+    if (settings && settings['ninemanga.language']) id = settings['ninemanga.language']
+    // @ts-ignore
+    const single = (Application as any).getSetting?.('ninemanga.language')
+    if (single) id = single
+  } catch {
+    // ignore
+  }
+
+  return id
+}
+
+const DEFAULT_IMAGE_HEADERS = {
   'user-agent': MOBILE_USER_AGENT,
   accept: 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8',
-  referer: BASE_URL,
 }
 
 class NineMangaExtension
@@ -45,18 +61,29 @@ class NineMangaExtension
 {
   private readonly cookieStorage = new CookieStorageInterceptor({ storage: 'stateManager' })
   private cookieStorageRegistered = false
-  private readonly client = new NineMangaClient((cookie) => this.cookieStorage.setCookie(cookie))
-  private readonly imageInterceptor = new ImageRequestInterceptor('ninemanga-image-headers', [
-    { pattern: /^https?:\/\/[^/?#]*niadd\.com\//i, headers: IMAGE_HEADERS },
-    { pattern: /^https?:\/\/[^/?#]*movietop\.cc\//i, headers: IMAGE_HEADERS },
-    { pattern: /^https?:\/\/[^/?#]*nineanime\.com\/files\//i, headers: IMAGE_HEADERS },
-    { pattern: /^https?:\/\/[^/?#]*(?:blogspot\.com|blogger\.googleusercontent\.com|googleusercontent\.com)\//i, headers: IMAGE_HEADERS },
-  ])
+  private client?: NineMangaClient
+  private imageInterceptor?: ImageRequestInterceptor
 
   async initialise(): Promise<void> {
+    const activeConfig = getNineMangaLanguageConfig(readLanguageSetting())
+
+    this.client = new NineMangaClient(() => getNineMangaLanguageConfig(readLanguageSetting()), (cookie) => this.cookieStorage.setCookie(cookie))
+
+    const imageHeaders = {
+      ...DEFAULT_IMAGE_HEADERS,
+      referer: activeConfig.baseUrl,
+    }
+
+    this.imageInterceptor = new ImageRequestInterceptor('ninemanga-image-headers', [
+      { pattern: /^https?:\/\/[^/?#]*niadd\.com\//i, headers: imageHeaders },
+      { pattern: /^https?:\/\/[^/?#]*movietop\.cc\//i, headers: imageHeaders },
+      { pattern: /^https?:\/\/[^/?#]*nineanime\.com\/files\//i, headers: imageHeaders },
+      { pattern: /^https?:\/\/[^/?#]*(?:blogspot\.com|blogger\.googleusercontent\.com|googleusercontent\.com)\//i, headers: imageHeaders },
+    ])
+
     this.imageInterceptor.registerInterceptor()
     Application.setRedirectHandler(Application.Selector(this, 'handleRedirect' as never))
-    console.log(`[NineManga] Initialising source ${SOURCE_VERSION}`)
+    console.log(`[NineManga] Initialising source ${SOURCE_VERSION} (lang=${activeConfig.id})`)
     if (!this.cookieStorageRegistered) {
       this.cookieStorage.registerInterceptor()
       this.cookieStorageRegistered = true
@@ -81,24 +108,28 @@ class NineMangaExtension
     }
 
     console.log(`[NineManga] Saved ${savedCookies} Cloudflare bypass cookies`)
-    if (savedCookies > 0) resetCloudflareBypassState(BASE_URL)
+    if (savedCookies > 0) {
+      const cfg = getNineMangaLanguageConfig(readLanguageSetting())
+      resetCloudflareBypassState(cfg.baseUrl)
+    }
   }
 
   async bypassCloudflareRequest(request: Request): Promise<Request> {
     console.log(`[NineManga] Preparing Cloudflare bypass request: ${request.url}`)
 
+    const cfg = getNineMangaLanguageConfig(readLanguageSetting())
     return {
       ...request,
       headers: {
         ...request.headers,
-        referer: BASE_URL,
+        referer: cfg.baseUrl,
         'user-agent': await Application.getDefaultUserAgent(),
       },
     }
   }
 
   async handleRedirect(proposedRequest: Request, redirectedResponse: Response): Promise<Request | undefined> {
-    if (this.isFinanceJumpRedirect(redirectedResponse)) {
+    if (this.isFinanceJumpRedirect(redirectedResponse) && this.client) {
       this.client.rememberFinanceJumpRedirect(redirectedResponse)
     }
 
@@ -158,6 +189,8 @@ class NineMangaExtension
   }
 
   private normalizeCloudflareCookies(cookie: Cookie): Cookie[] {
+    const cfg = getNineMangaLanguageConfig(readLanguageSetting())
+    const COOKIE_DOMAIN = cfg.cookieDomain
     const normalizedCookie = {
       ...cookie,
       domain: cookie.domain || COOKIE_DOMAIN,
@@ -177,7 +210,8 @@ class NineMangaExtension
   }
 
   private isNineMangaCookieDomain(domain: string): boolean {
-    return domain.replace(/^\./, '').toLowerCase().endsWith(COOKIE_DOMAIN)
+    const cd = getNineMangaLanguageConfig(readLanguageSetting()).cookieDomain
+    return domain.replace(/^\./, '').toLowerCase().endsWith(cd)
   }
 }
 

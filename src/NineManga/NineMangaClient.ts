@@ -27,8 +27,8 @@ import type {
   NineMangaSectionId,
 } from './NineMangaModels'
 import { NineMangaParser, type NineMangaGateCandidate, type NineMangaReaderPageKind } from './NineMangaParser'
+import type { NineMangaLanguageConfig } from './NineMangaLanguageConfig'
 
-const BASE_URL = 'https://www.ninemanga.com/'
 const SWEETTOOTH_BASE_URL = 'https://www.sweettoothrecipes.com/'
 const FINANCE_MASTER_PRO_BASE_URL = 'https://www.financemasterpro.com/'
 const HTML_CACHE_TTL_MS = 2 * 60 * 1000
@@ -116,30 +116,60 @@ const SECTIONS: NineMangaListingConfig[] = [
 ]
 
 export class NineMangaClient {
-  private readonly parser = new NineMangaParser(BASE_URL)
+  private parser: NineMangaParser
+  private config: NineMangaLanguageConfig
+  private readonly getConfig: () => NineMangaLanguageConfig
   private readonly htmlCache = new Map<string, CacheEntry<TextResponse>>()
   private readonly htmlRequests = new Map<string, Promise<TextResponse>>()
   private readonly mangaDataCache = new Map<string, CacheEntry<NineMangaMangaData>>()
   private readonly financeReaderPageIdByChapterId = new Map<string, string>()
   private readonly financeJumpRedirects = new Map<string, FinanceRedirectInfo>()
 
-  constructor(private readonly setCookie?: (cookie: Cookie) => void) {}
+  constructor(getConfig: () => NineMangaLanguageConfig, private readonly setCookie?: (cookie: Cookie) => void) {
+    this.getConfig = getConfig
+    this.config = this.getConfig()
+    this.parser = new NineMangaParser(this.config.baseUrl, this.config.langCode)
+  }
+
+  private baseUrl(): string {
+    return this.config?.baseUrl ?? 'https://www.ninemanga.com/'
+  }
+
+  private ensureLanguage(): void {
+    const next = this.getConfig()
+    if (!this.config || next.baseUrl !== this.config.baseUrl || next.id !== this.config.id) {
+      this.config = next
+      this.parser = new NineMangaParser(this.config.baseUrl, this.config.langCode)
+      this.clearLanguageSensitiveCaches()
+      console.log(`[NineManga] Language switched to ${this.config.id}; cleared language-sensitive caches`)
+    }
+  }
+
+  private clearLanguageSensitiveCaches(): void {
+    this.htmlCache.clear()
+    this.htmlRequests.clear()
+    this.mangaDataCache.clear()
+    this.financeReaderPageIdByChapterId.clear()
+    this.financeJumpRedirects.clear()
+  }
 
   async getMangaDetails(mangaId: string): Promise<SourceManga> {
+    this.ensureLanguage()
     const details = await this.getMangaData(mangaId)
     return this.parser.toSourceManga(details)
   }
 
   async getChapters(sourceManga: SourceManga): Promise<Chapter[]> {
-  const details = await this.getMangaData(sourceManga.mangaId)
+    this.ensureLanguage()
+    const details = await this.getMangaData(sourceManga.mangaId)
 
-  return this.sortChaptersForReaderProgression(
-    details.chapters.map((chapter) => ({
-      ...chapter,
-      sourceManga,
-    }))
-  )
-}
+    return this.sortChaptersForReaderProgression(
+      details.chapters.map((chapter) => ({
+        ...chapter,
+        sourceManga,
+      }))
+    )
+  }
 private sortChaptersForReaderProgression(chapters: Chapter[]): Chapter[] {
   return [...chapters]
     .sort((a, b) => {
@@ -169,6 +199,7 @@ private chapterProgressionNumber(chapter: Chapter): number {
 }
 
   async getChapterDetails(chapter: Chapter): Promise<ChapterDetails> {
+    this.ensureLanguage()
     const preparedChapter = await this.prepareReaderChapter(chapter)
     this.setReaderUnlockCookie(preparedChapter)
     this.setReaderListCookie()
@@ -234,7 +265,8 @@ private chapterProgressionNumber(chapter: Chapter): number {
       }
     }
 
-    const url = withQueryParam('/search/mobile/', BASE_URL, 'wd', query)
+    this.ensureLanguage()
+    const url = withQueryParam('/search/mobile/', this.baseUrl(), 'wd', query)
 
     const items = await getJson<NineMangaMobileSearchItem[]>(
       url,
@@ -248,14 +280,15 @@ private chapterProgressionNumber(chapter: Chapter): number {
   }
 
   private async getMangaData(mangaId: string): Promise<NineMangaMangaData> {
-    const mangaUrl = this.withMangaWarning(normalizeUrl(mangaId, BASE_URL), true)
+    this.ensureLanguage()
+    const mangaUrl = this.withMangaWarning(normalizeUrl(mangaId, this.baseUrl()), true)
     const cachedData = this.cacheValue(this.mangaDataCache, mangaUrl)
     if (cachedData) return cachedData
 
     const firstResponse = await this.getHtml(mangaUrl)
     const firstData = this.parser.parseManga(
       firstResponse.body,
-      pathIdFromUrl(firstResponse.url, BASE_URL),
+      pathIdFromUrl(firstResponse.url, this.baseUrl()),
       firstResponse.url
     )
 
@@ -263,7 +296,7 @@ private chapterProgressionNumber(chapter: Chapter): number {
       const warningResponse = await this.getHtml(firstData.warningUrl)
       const warningData = this.parser.parseManga(
         warningResponse.body,
-        pathIdFromUrl(mangaUrl, BASE_URL),
+        pathIdFromUrl(mangaUrl, this.baseUrl()),
         warningResponse.url
       )
 
@@ -274,11 +307,11 @@ private chapterProgressionNumber(chapter: Chapter): number {
     }
 
     if (firstData.chapters.length === 0 && firstData.warningUrl) {
-      const fallbackUrl = withQueryParam(mangaUrl, BASE_URL, 'waring', '1')
+      const fallbackUrl = withQueryParam(mangaUrl, this.baseUrl(), 'waring', '1')
       const fallbackResponse = await this.getHtml(fallbackUrl)
       const fallbackData = this.parser.parseManga(
         fallbackResponse.body,
-        pathIdFromUrl(mangaUrl, BASE_URL),
+        pathIdFromUrl(mangaUrl, this.baseUrl()),
         fallbackResponse.url
       )
 
@@ -292,7 +325,8 @@ private chapterProgressionNumber(chapter: Chapter): number {
 
   private async getListing(config: NineMangaListingConfig, page: number): Promise<NineMangaListingItem[]> {
     const path = page === 1 ? config.path : `${config.ajaxPrefix}${page}`
-    const response = await this.getHtml(normalizeUrl(path, BASE_URL))
+    this.ensureLanguage()
+    const response = await this.getHtml(normalizeUrl(path, this.baseUrl()))
     return this.parser.parseListing(response.body)
   }
 
@@ -397,7 +431,7 @@ private chapterProgressionNumber(chapter: Chapter): number {
     url: string,
     state: ReaderResolutionState
   ): Promise<string[]> {
-    const response = await this.getReaderHtml(url, BASE_URL, state)
+    const response = await this.getReaderHtml(url, this.baseUrl(), state)
     if (!response) return []
 
     return this.resolveReaderResponse(response, state)
@@ -550,7 +584,12 @@ private chapterProgressionNumber(chapter: Chapter): number {
     }
 
     const financeJumpUrl = this.financeJumpUrlForState(state)
-    if (this.isSweettoothUrl(response.url) && financeJumpUrl && !nextUrls.some((url) => this.sourceFlowKey(url) === this.sourceFlowKey(financeJumpUrl))) {
+    if (
+      this.config.flowType === 'english-finance-gate' &&
+      this.isSweettoothUrl(response.url) &&
+      financeJumpUrl &&
+      !nextUrls.some((url) => this.sourceFlowKey(url) === this.sourceFlowKey(financeJumpUrl))
+    ) {
       nextUrls.push(financeJumpUrl)
     }
     if (financeJumpUrl) console.log(`[NineManga] Finance jump url: ${financeJumpUrl}`)
@@ -579,8 +618,8 @@ private chapterProgressionNumber(chapter: Chapter): number {
     state: ReaderResolutionState
   ): Promise<TextResponse | undefined> {
     const normalizedUrl = this.isNineMangaUrl(url)
-      ? this.withReaderWarning(normalizeUrl(url, BASE_URL))
-      : normalizeUrl(url, BASE_URL)
+      ? this.withReaderWarning(normalizeUrl(url, this.baseUrl()))
+      : normalizeUrl(url, this.baseUrl())
     const key = this.sourceFlowKey(normalizedUrl)
 
     if (!normalizedUrl || state.visitedUrls.has(key)) return undefined
@@ -607,7 +646,7 @@ private chapterProgressionNumber(chapter: Chapter): number {
     state: ReaderResolutionState,
     redirectCount = 0
   ): Promise<GateTextResponse | undefined> {
-    const normalizedUrl = normalizeUrl(url, BASE_URL)
+    const normalizedUrl = normalizeUrl(url, this.baseUrl())
     const key = this.sourceFlowKey(normalizedUrl)
 
     if (!normalizedUrl || state.visitedUrls.has(key)) return undefined
@@ -967,7 +1006,7 @@ private chapterProgressionNumber(chapter: Chapter): number {
 
   private readerDirectCandidates(chapter: Chapter, chapterUrl: string): string[] {
     const candidates: string[] = []
-    const normalizedChapterUrl = normalizeUrl(chapterUrl, BASE_URL)
+    const normalizedChapterUrl = normalizeUrl(chapterUrl, this.baseUrl())
 
     if (this.isNineMangaUrl(normalizedChapterUrl)) {
       candidates.push(this.withReaderWarning(normalizedChapterUrl))
@@ -996,7 +1035,7 @@ private chapterProgressionNumber(chapter: Chapter): number {
   private rememberGateUrl(url: string | undefined, state: ReaderResolutionState): void {
     if (!url) return
 
-    const normalizedUrl = normalizeUrl(url, BASE_URL)
+    const normalizedUrl = normalizeUrl(url, this.baseUrl())
     if (!normalizedUrl || this.isNineMangaUrl(normalizedUrl)) return
     if (!this.isKnownGateUrl(normalizedUrl)) return
 
@@ -1060,15 +1099,16 @@ private chapterProgressionNumber(chapter: Chapter): number {
     return ContentRating.EVERYONE
   }
 
-  private async getHtml(url: string, referer = BASE_URL) {
-    const normalizedUrl = normalizeUrl(url, BASE_URL)
+  private async getHtml(url: string, referer?: string) {
+    const ref = referer ?? this.baseUrl()
+    const normalizedUrl = normalizeUrl(url, this.baseUrl())
     const cachedResponse = this.cacheValue(this.htmlCache, normalizedUrl)
     if (cachedResponse) return cachedResponse
 
     const pendingRequest = this.htmlRequests.get(normalizedUrl)
     if (pendingRequest) return pendingRequest
 
-    const request = getText(normalizedUrl, await this.getHeaders(referer))
+    const request = getText(normalizedUrl, await this.getHeaders(ref))
       .then((response) => {
         this.rememberCache(this.htmlCache, normalizedUrl, response, HTML_CACHE_TTL_MS)
         return response
@@ -1084,40 +1124,47 @@ private chapterProgressionNumber(chapter: Chapter): number {
   private withMangaWarning(url: string, force = false): string {
     if (!url || (!force && !this.isMangaUrl(url))) return url
 
-    return withQueryParam(url, BASE_URL, 'waring', '1')
+    return withQueryParam(url, this.baseUrl(), 'waring', '1')
   }
 
   private withReaderWarning(url: string): string {
     if (!url || !this.isNineMangaUrl(url) || !url.includes('/chapter/')) return url
 
-    return withQueryParam(url, BASE_URL, 'waring', '1')
+    return withQueryParam(url, this.baseUrl(), 'waring', '1')
   }
 
   private isMangaUrl(url: string): boolean {
-    const normalized = normalizeUrl(url, BASE_URL)
+    const normalized = normalizeUrl(url, this.baseUrl())
     const path = normalized.match(/^[a-z][a-z0-9+.-]*:\/\/[^/?#]+([^?#]*)/i)?.[1] ?? normalized
     return path.includes('/manga/')
   }
 
   private isNineMangaUrl(url: string): boolean {
-    return /^https?:\/\/(?:www\.)?ninemanga\.com(?:[/:?#]|$)/i.test(normalizeUrl(url, BASE_URL))
+    try {
+      const u = new URL(url)
+      const host = u.host.toLowerCase().replace(/^www\./, '')
+      const cfgHost = new URL(this.baseUrl()).host.toLowerCase().replace(/^www\./, '')
+      return host === cfgHost || host.endsWith('.' + cfgHost)
+    } catch {
+      return false
+    }
   }
 
   private isNineMangaReaderUrl(url: string): boolean {
-    const normalized = normalizeUrl(url, BASE_URL).toLowerCase()
+    const normalized = normalizeUrl(url, this.baseUrl()).toLowerCase()
     return this.isNineMangaUrl(normalized) && normalized.includes('/chapter/')
   }
 
   private isSweettoothUrl(url: string): boolean {
-    return /^https?:\/\/(?:www\.)?sweettoothrecipes\.com(?:[/:?#]|$)/i.test(normalizeUrl(url, BASE_URL))
+    return /^https?:\/\/(?:www\.)?sweettoothrecipes\.com(?:[/:?#]|$)/i.test(normalizeUrl(url, this.baseUrl()))
   }
 
   private isFinanceMasterProUrl(url: string): boolean {
-    return /^https?:\/\/(?:www\.)?financemasterpro\.com(?:[/:?#]|$)/i.test(normalizeUrl(url, BASE_URL))
+    return /^https?:\/\/(?:www\.)?financemasterpro\.com(?:[/:?#]|$)/i.test(normalizeUrl(url, this.baseUrl()))
   }
 
   private isKnownGateUrl(url: string): boolean {
-    const normalized = normalizeUrl(url, BASE_URL).toLowerCase()
+    const normalized = normalizeUrl(url, this.baseUrl()).toLowerCase()
     if (this.isNineMangaUrl(normalized)) return false
 
     return (
@@ -1138,9 +1185,9 @@ private chapterProgressionNumber(chapter: Chapter): number {
 
   private gateRefererForUrl(url: string, state: ReaderResolutionState): string {
     if (this.isFinanceMasterProUrl(url)) return SWEETTOOTH_BASE_URL
-    if (this.isSweettoothUrl(url)) return state.chapterUrl || BASE_URL
+    if (this.isSweettoothUrl(url)) return state.chapterUrl || this.baseUrl()
 
-    return BASE_URL
+    return this.baseUrl()
   }
 
   private financeJumpUrlForState(state: ReaderResolutionState): string {
@@ -1161,7 +1208,7 @@ private chapterProgressionNumber(chapter: Chapter): number {
 
   private resolveReaderChapterUrl(chapter: Chapter): string {
     const rawStoredUrl = chapter.additionalInfo?.url ?? chapter.chapterId
-    const storedUrl = normalizeUrl(rawStoredUrl, BASE_URL)
+    const storedUrl = normalizeUrl(rawStoredUrl, this.baseUrl())
     const canonicalUrl = this.canonicalNineMangaChapterUrl(chapter)
     const shouldUseCanonical = Boolean(canonicalUrl) && !this.isNineMangaChapterUrl(storedUrl)
     const finalUrl = shouldUseCanonical ? canonicalUrl : storedUrl || canonicalUrl
@@ -1179,23 +1226,25 @@ private chapterProgressionNumber(chapter: Chapter): number {
 
     if (!chapterId || !mangaSlug) return ''
 
-    return normalizeUrl(`/chapter/${mangaSlug}/${chapterId}.html`, BASE_URL)
+    return normalizeUrl(`/chapter/${mangaSlug}/${chapterId}.html`, this.baseUrl())
   }
 
   private mangaSlugFromMangaId(mangaId: string): string {
-    const normalized = normalizeUrl(mangaId, BASE_URL)
+    const normalized = normalizeUrl(mangaId, this.baseUrl())
     const match = normalized.match(/\/manga\/([^/?#]+)\.html/i)
     return match?.[1] ?? ''
   }
 
   private isNineMangaChapterUrl(url: string): boolean {
-    const normalized = normalizeUrl(url, BASE_URL).toLowerCase()
-
-    return (
-      /^https:\/\/(?:www\.)?ninemanga\.com\//.test(normalized) &&
-      normalized.includes('/chapter/') &&
-      /\.html(?:[?#].*)?$/.test(normalized)
-    )
+    const normalized = normalizeUrl(url, this.baseUrl()).toLowerCase()
+    try {
+      const u = new URL(normalized)
+      const host = u.host.toLowerCase().replace(/^www\./, '')
+      const cfgHost = new URL(this.baseUrl()).host.toLowerCase().replace(/^www\./, '')
+      return (host === cfgHost || host.endsWith('.' + cfgHost)) && normalized.includes('/chapter/') && /\.html(?:[?#].*)?$/.test(normalized)
+    } catch {
+      return false
+    }
   }
 
   private readerBaseUrl(url: string): string {
@@ -1207,17 +1256,19 @@ private chapterProgressionNumber(chapter: Chapter): number {
     return url.replace(/&amp;/g, '&').replace(/#.*$/, '')
   }
 
-  private async getHeaders(referer = BASE_URL) {
-    return mergeHeaders(await defaultBrowserHeaders(referer), {
+  private async getHeaders(referer?: string) {
+    const ref = referer ?? this.baseUrl()
+    return mergeHeaders(await defaultBrowserHeaders(ref), {
       accept: 'text/html,application/json;q=0.9,*/*;q=0.8',
     })
   }
 
-  private async getReaderHeaders(referer = BASE_URL) {
-    return mergeHeaders(await defaultBrowserHeaders(BASE_URL), {
+  private async getReaderHeaders(referer?: string) {
+    const ref = referer ?? this.baseUrl()
+    return mergeHeaders(await defaultBrowserHeaders(this.baseUrl()), {
       accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
       cookie: 'ninemanga_list_num=1',
-      referer: this.isNineMangaUrl(referer) ? referer : BASE_URL,
+      referer: this.isNineMangaUrl(ref) ? ref : this.baseUrl(),
     })
   }
 
@@ -1342,7 +1393,7 @@ private chapterProgressionNumber(chapter: Chapter): number {
   }
 
   private hostFromUrl(url: string): string {
-    return normalizeUrl(url, BASE_URL).match(/^https?:\/\/([^/?#]+)/i)?.[1]?.toLowerCase().replace(/^www\./, '') ?? ''
+    return normalizeUrl(url, this.baseUrl()).match(/^https?:\/\/([^/?#]+)/i)?.[1]?.toLowerCase().replace(/^www\./, '') ?? ''
   }
 
   private logExtractedImages(images: string[]): void {
@@ -1392,7 +1443,10 @@ private chapterProgressionNumber(chapter: Chapter): number {
     if (!this.setCookie || !bookId || !chapterId) return
 
     const expires = new Date(Date.now() + 24 * 60 * 60 * 1000)
-    const domains = ['ninemanga.com', 'www.ninemanga.com', '.ninemanga.com']
+    const cd = this.config.cookieDomain
+    const domains: string[] = [cd]
+    if (cd.split('.').length === 2) domains.push(`www.${cd}`)
+    domains.push(`.${cd}`)
 
     for (const domain of domains) {
       this.setCookie({
@@ -1417,7 +1471,10 @@ private chapterProgressionNumber(chapter: Chapter): number {
     if (!this.setCookie) return
 
     const expires = new Date(Date.now() + 24 * 60 * 60 * 1000)
-    const domains = ['ninemanga.com', 'www.ninemanga.com', '.ninemanga.com']
+    const cd = this.config.cookieDomain
+    const domains: string[] = [cd]
+    if (cd.split('.').length === 2) domains.push(`www.${cd}`)
+    domains.push(`.${cd}`)
 
     for (const domain of domains) {
       this.setCookie({
