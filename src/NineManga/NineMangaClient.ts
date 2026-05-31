@@ -561,12 +561,7 @@ private chapterProgressionNumber(chapter: Chapter): number {
     pages.push(...firstImages)
 
     const rawPageUrls = this.parser.parseReaderPageUrls(firstResponse.body, firstResponse.url)
-    const batchSize = Math.max(firstImages.length, 1)
-    const batchPageUrls = batchSize > 1
-      ? this.localizedBatchPageUrls(firstResponse.url, rawPageUrls.length || firstImages.length, batchSize)
-      : []
-
-    const pageUrls = uniqueStrings(batchPageUrls.length > 0 ? batchPageUrls : rawPageUrls)
+    const pageUrls = uniqueStrings(rawPageUrls)
       .map((pageUrl) => this.withReaderWarning(normalizeUrl(pageUrl, this.baseUrl())))
       .filter((pageUrl) => Boolean(pageUrl))
       .filter((pageUrl) => this.sourceFlowKey(pageUrl) !== firstKey)
@@ -574,9 +569,7 @@ private chapterProgressionNumber(chapter: Chapter): number {
       .filter((pageUrl) => this.localizedChapterBaseKey(pageUrl) === currentChapterBaseKey)
       .slice(0, MAX_READER_REQUESTS - 1)
 
-    console.log(
-      `[NineManga] Localized reader page URLs parsed: ${rawPageUrls.length}; batchSize=${batchSize}; accepted: ${pageUrls.length}`
-    )
+    console.log(`[NineManga] Localized reader page URLs parsed: ${rawPageUrls.length}; accepted: ${pageUrls.length}`)
 
     for (let index = 0; index < pageUrls.length; index += MAX_LOCALIZED_CONCURRENT_REQUESTS) {
       const batch = pageUrls.slice(index, index + MAX_LOCALIZED_CONCURRENT_REQUESTS)
@@ -606,26 +599,6 @@ private chapterProgressionNumber(chapter: Chapter): number {
       .replace(/-\d+(?:-\d+)?$/i, '')
 
     return this.sourceFlowKey(normalized)
-  }
-
-  private localizedBatchPageUrls(firstUrl: string, pageCount: number, batchSize: number): string[] {
-    const cleanFirstUrl = normalizeUrl(firstUrl, this.baseUrl()).split('#')[0] ?? ''
-    const [withoutQuery, query = ''] = cleanFirstUrl.split('?')
-    const base = withoutQuery.replace(/-(\d+)(?:-\d+)?\.html$/i, '').replace(/\.html$/i, '')
-    if (!base || pageCount <= batchSize) return []
-
-    const urls: string[] = []
-    for (let page = batchSize * 2; page <= pageCount; page += batchSize) {
-      const url = `${base}-${page}-1.html${query ? `?${query}` : ''}`
-      urls.push(url)
-    }
-
-    if (pageCount % batchSize !== 0) {
-      const url = `${base}-${pageCount}-1.html${query ? `?${query}` : ''}`
-      urls.push(url)
-    }
-
-    return uniqueStrings(urls)
   }
 
   private async getLocalizedTascabileHtml(
@@ -1436,15 +1409,6 @@ private financeJumpUrlForState(state: ReaderResolutionState): string {
     const rawStoredUrl = chapter.additionalInfo?.url ?? chapter.chapterId
     const storedUrl = normalizeUrl(rawStoredUrl, this.baseUrl())
     const canonicalUrl = this.canonicalNineMangaChapterUrl(chapter)
-
-    if (this.config.flowType === 'localized-tascabile') {
-      const localizedReaderUrl = this.localizedTascabileBatchReaderUrl(storedUrl || canonicalUrl)
-      if (localizedReaderUrl) {
-        console.log(`[NineManga] Localized reader using 10-page batch URL: ${localizedReaderUrl}`)
-        return localizedReaderUrl
-      }
-    }
-
     const shouldUseCanonical = Boolean(canonicalUrl) && !this.isNineMangaChapterUrl(storedUrl)
     const finalUrl = shouldUseCanonical ? canonicalUrl : storedUrl || canonicalUrl
 
@@ -1453,18 +1417,6 @@ private financeJumpUrlForState(state: ReaderResolutionState): string {
     }
 
     return finalUrl
-  }
-
-  private localizedTascabileBatchReaderUrl(url: string): string {
-    const normalized = normalizeUrl(url, this.baseUrl()).split('#')[0] ?? ''
-    if (!normalized || !this.isNineMangaChapterUrl(normalized)) return ''
-
-    const [withoutQuery, query = ''] = normalized.split('?')
-    const batchUrl = withoutQuery
-      .replace(/\/(\d+)(?:-\d+(?:-\d+)?)?\.html$/i, '/$1-10-1.html')
-      .replace(/\/(\d+)(?:-\d+(?:-\d+)?)?\/?$/i, '/$1-10-1.html')
-
-    return query ? `${batchUrl}?${query}` : batchUrl
   }
 
   private canonicalNineMangaChapterUrl(chapter: Chapter): string {
