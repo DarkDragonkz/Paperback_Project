@@ -10,7 +10,7 @@ import type { AnyNode } from 'domhandler'
 
 import { cleanText, safeAttr, safeText, splitCommaList } from '../common/parsing/html'
 import { uniqueBy, uniqueStrings } from '../common/utils/array'
-import { normalizeUrl, pathIdFromUrl } from '../common/utils/url'
+import { normalizeUrl, pathIdFromUrl, withQueryParam } from '../common/utils/url'
 import type {
   NineMangaChapterPage,
   NineMangaListingItem,
@@ -27,6 +27,13 @@ const NON_GENRE_LABELS = new Set([
   '0-9',
   ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split(''),
 ])
+
+export type NineMangaReaderPageKind =
+  | 'real-reader'
+  | 'source-gate'
+  | 'cloudflare'
+  | 'external-ad'
+  | 'dead'
 
 export class NineMangaParser {
   constructor(private readonly baseUrl: string) {}
@@ -119,56 +126,92 @@ export class NineMangaParser {
   }
 
   parseChapterPage(html: string, currentUrl: string): NineMangaChapterPage[] {
-    const $ = cheerio.load(html)
-    const imageUrl = this.normalizeImageUrl($('img.manga_pic[src]').first().attr('src'), currentUrl)
     const normalizedCurrentUrl = normalizeUrl(currentUrl, this.baseUrl)
     const pages: NineMangaChapterPage[] = []
 
-    $('select.sl-page option[value]').each((_, option) => {
-      const pageOption = $(option)
-      const pageUrl = normalizeUrl(pageOption.attr('value'), this.baseUrl)
-      if (!pageUrl) return
-
-      pages.push({
-        url: pageUrl,
-        imageUrl:
-          imageUrl && (pageOption.attr('selected') !== undefined || this.sameUrl(pageUrl, normalizedCurrentUrl))
-            ? imageUrl
-            : undefined,
-      })
-    })
+    for (const pageUrl of this.parseReaderPageUrls(html, currentUrl)) {
+      pages.push({ url: pageUrl })
+    }
 
     if (pages.length > 0) return uniqueBy(pages, (page) => page.url)
 
-    const allImageUrls = uniqueStrings([
-      ...this.parseAllImageUrls(html, currentUrl),
-      ...this.parseInlineReaderImageUrls(html, currentUrl),
-    ])
-    if (allImageUrls.length > 0) {
-      return allImageUrls.map((imageUrl, index) => ({
+    const images = this.parseReaderImageUrls(html, currentUrl)
+    if (images.length > 0) {
+      return images.map((imageUrl, index) => ({
         url: `${currentUrl}#page-${index + 1}`,
         imageUrl,
       }))
     }
 
-    const readerImages = this.parseReaderImages($, currentUrl)
-    if (readerImages.length > 1) {
-      return readerImages.map((imageUrl, index) => ({
-        url: `${currentUrl}#page-${index + 1}`,
-        imageUrl,
-      }))
+    return uniqueBy(pages, (page) => page.url || normalizedCurrentUrl)
+  }
+
+  parseReaderImageUrls(html: string, currentUrl = this.baseUrl): string[] {
+    const $ = cheerio.load(html)
+    const images: string[] = []
+
+    images.push(...this.parseAllImageUrls(html, currentUrl))
+    images.push(...this.parseImagesFromSelector($, 'div.pic_box img.manga_pic', currentUrl, false))
+    images.push(...this.parseImagesFromSelector($, 'img.manga_pic', currentUrl, false))
+    images.push(...this.parseImagesFromSelector($, 'a.pic_download img', currentUrl, true))
+
+    const ogImage = this.normalizeImageUrl($('meta[property="og:image"]').first().attr('content'), currentUrl)
+    if (this.isReaderImageUrl(ogImage)) images.push(ogImage)
+
+    return uniqueStrings(images.filter((imageUrl) => this.isAllowedReaderImageUrl(imageUrl)))
+  }
+
+  parseReaderPageUrls(html: string, currentUrl = this.baseUrl): string[] {
+    const $ = cheerio.load(html)
+    const pageUrls: string[] = []
+
+    $('select#page option[value], select.sl-page option[value]').each((_, option) => {
+      const pageUrl = this.withWarningParam(normalizeUrl($(option).attr('value'), currentUrl || this.baseUrl))
+      if (pageUrl) pageUrls.push(pageUrl)
+    })
+
+    return uniqueStrings(pageUrls)
+  }
+
+  classifyReaderPage(html: string, currentUrl: string): NineMangaReaderPageKind {
+    const normalizedUrl = normalizeUrl(currentUrl, this.baseUrl).toLowerCase()
+    const normalizedHtml = html.toLowerCase()
+
+    if (!this.isNineMangaUrl(normalizedUrl)) return 'external-ad'
+
+    if (
+      normalizedHtml.includes('cf-browser-verification') ||
+      normalizedHtml.includes('cf-challenge') ||
+      normalizedHtml.includes('challenge-platform') ||
+      normalizedHtml.includes('turnstile') ||
+      normalizedHtml.includes('captcha') ||
+      normalizedHtml.includes('checking if the site connection is secure')
+    ) {
+      return 'cloudflare'
     }
 
-    if (imageUrl || readerImages[0]) {
-      pages.push({ url: normalizedCurrentUrl, imageUrl: imageUrl || readerImages[0] })
+    if (
+      normalizedHtml.includes('img class="manga_pic') ||
+      normalizedHtml.includes("img class='manga_pic") ||
+      normalizedHtml.includes('div class="pic_box') ||
+      normalizedHtml.includes("div class='pic_box") ||
+      normalizedHtml.includes('all_imgs_url') ||
+      this.parseReaderImageUrls(html, currentUrl).length > 0 ||
+      this.parseReaderPageUrls(html, currentUrl).length > 0
+    ) {
+      return 'real-reader'
     }
 
-    return uniqueBy(pages, (page) => page.url)
+    if (this.parseSourceSelectionUrl(html)) return 'source-gate'
+
+    return 'dead'
   }
 
   parseSourceSelectionUrl(html: string): string | undefined {
     const $ = cheerio.load(html)
+    const serverHref = $('section.section div.post-content-body > a[href]').first().attr('href')
     const href =
+      serverHref ||
       $('a.vision-button[href*="/go/jump/"]').first().attr('href') ||
       $('a.vision-button[href*="/go/ennm/"]').first().attr('href') ||
       $('a[href*="type=enninemanga"][href*="cid="]').first().attr('href') ||
@@ -180,12 +223,30 @@ export class NineMangaParser {
     if (!normalizedUrl) return undefined
 
     const allowed =
+      Boolean(serverHref) ||
       normalizedUrl.startsWith(this.baseUrl) ||
       normalizedUrl.includes('/go/ennm/') ||
       normalizedUrl.includes('/go/jump/') ||
       normalizedUrl.includes('type=enninemanga')
 
     return allowed ? normalizedUrl : undefined
+  }
+
+  parseReaderRedirectUrl(html: string, currentUrl: string): string | undefined {
+    const $ = cheerio.load(html)
+    const script =
+      $('body > script')
+        .toArray()
+        .map((element) => $(element).html() ?? '')
+        .find((content) => content.includes('window.location.href')) ||
+      $('script')
+        .toArray()
+        .map((element) => $(element).html() ?? '')
+        .find((content) => content.includes('window.location.href'))
+
+    const target = script?.match(/window\.location\.href\s*=\s*["']([^"']+)["']/i)?.[1]
+    const redirectUrl = normalizeUrl(target, currentUrl || this.baseUrl)
+    return redirectUrl || undefined
   }
 
   parseExternalSourceChapterId(html: string): string | undefined {
@@ -212,8 +273,7 @@ export class NineMangaParser {
   }
 
   parseImage(html: string, currentUrl = this.baseUrl): string | undefined {
-    const $ = cheerio.load(html)
-    return this.parseAllImageUrls(html, currentUrl)[0] || this.parseReaderImages($, currentUrl)[0] || undefined
+    return this.parseReaderImageUrls(html, currentUrl)[0] || undefined
   }
 
   toSourceManga(data: NineMangaMangaData): SourceManga {
@@ -382,6 +442,21 @@ export class NineMangaParser {
     return uniqueStrings(images)
   }
 
+  private parseImagesFromSelector(
+    $: cheerio.CheerioAPI,
+    selector: string,
+    currentUrl: string,
+    requireReaderPath: boolean
+  ): string[] {
+    const images: string[] = []
+
+    $(selector).each((_, element) => {
+      images.push(...this.imageUrlsFromAttributes($(element), requireReaderPath, currentUrl))
+    })
+
+    return uniqueStrings(images)
+  }
+
   private imageUrlsFromAttributes(
     image: cheerio.Cheerio<AnyNode>,
     requireReaderPath: boolean,
@@ -434,8 +509,28 @@ export class NineMangaParser {
     const normalized = url.toLowerCase()
     return (
       normalized.includes('/comics/') ||
+      /\/\/img\d+\.[^/?#]*niadd\.com\//i.test(normalized) ||
+      normalized.includes('.niadd.com/') ||
       normalized.includes('.movietop.cc/') ||
       normalized.includes('nineanime.com/files/')
+    )
+  }
+
+  private isAllowedReaderImageUrl(url: string): boolean {
+    if (!this.isImageUrl(url) || !this.isReaderImageUrl(url)) return false
+
+    const normalized = url.toLowerCase()
+    return !(
+      normalized.includes('placeholder') ||
+      normalized.includes('logo') ||
+      normalized.includes('banner') ||
+      normalized.includes('/ads') ||
+      normalized.includes('/ad/') ||
+      normalized.includes('advert') ||
+      normalized.includes('mangadogs') ||
+      normalized.includes('update') ||
+      normalized.includes('sweettoothrecipes.com') ||
+      normalized.includes('financemasterpro.com')
     )
   }
 
@@ -453,6 +548,16 @@ export class NineMangaParser {
 
   private normalizeImageUrl(value: string | undefined, currentUrl = this.baseUrl): string {
     return normalizeUrl(this.decodeHtmlEntities(value ?? ''), currentUrl || this.baseUrl)
+  }
+
+  private withWarningParam(url: string): string {
+    if (!url || !url.includes('/chapter/')) return url
+
+    return withQueryParam(url, this.baseUrl, 'waring', '1')
+  }
+
+  private isNineMangaUrl(url: string): boolean {
+    return /^https?:\/\/(?:www\.)?ninemanga\.com(?:[/:?#]|$)/i.test(url)
   }
 
   private decodeHtmlEntities(value: string): string {

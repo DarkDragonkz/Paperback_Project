@@ -21,21 +21,27 @@ import { normalizeUrl, pathIdFromUrl, withQueryParam } from '../common/utils/url
 import type {
   NineMangaListingConfig,
   NineMangaListingItem,
-  NineMangaChapterPage,
   NineMangaMobileSearchItem,
   NineMangaMangaData,
   NineMangaSectionId,
 } from './NineMangaModels'
-import { NineMangaParser } from './NineMangaParser'
+import { NineMangaParser, type NineMangaReaderPageKind } from './NineMangaParser'
 
 const BASE_URL = 'https://www.ninemanga.com/'
 const HTML_CACHE_TTL_MS = 2 * 60 * 1000
 const MANGA_DATA_CACHE_TTL_MS = 5 * 60 * 1000
 const MAX_CACHE_ENTRIES = 30
+const MAX_READER_REQUESTS = 40
 
 interface CacheEntry<T> {
   expiresAt: number
   value: T
+}
+
+interface ReaderResolutionState {
+  visitedUrls: Set<string>
+  gateUrls: string[]
+  requestCount: number
 }
 
 const SECTIONS: NineMangaListingConfig[] = [
@@ -100,163 +106,25 @@ export class NineMangaClient {
   async getChapterDetails(chapter: Chapter): Promise<ChapterDetails> {
     const preparedChapter = await this.prepareReaderChapter(chapter)
     this.setReaderUnlockCookie(preparedChapter)
+    this.setReaderListCookie()
 
     const rawChapterUrl = this.resolveReaderChapterUrl(preparedChapter)
-    const chapterUrl = this.stripWarningParamFromChapterUrl(rawChapterUrl)
+    const chapterUrl = this.withReaderWarning(rawChapterUrl)
     if (!chapterUrl) throw new Error('Invalid NineManga chapter URL')
 
-    const pageRefs = await this.resolveChapterPageRefs(preparedChapter, chapterUrl)
-    const pages: string[] = []
-
-    for (const pageRef of pageRefs) {
-      if (pageRef.imageUrl) {
-        pages.push(pageRef.imageUrl)
-        continue
-      }
-
-      const pageHtml = await this.getHtml(pageRef.url, chapterUrl)
-      const imageUrl = this.parser.parseImage(pageHtml.body, pageHtml.url)
-      if (imageUrl) pages.push(imageUrl)
-    }
+    const pages = await this.resolveReaderImages(preparedChapter, chapterUrl)
 
     const uniquePages = uniqueStrings(pages)
     console.log(`[NineManga] Reader images returned: ${uniquePages.length}`)
-    if (uniquePages.length === 0) throw new Error('No readable pages found for this NineManga chapter')
+    if (uniquePages.length === 0) {
+      throw new Error('NineManga reader: no readable images found. Page may require WebView/Cloudflare session.')
+    }
 
     return {
       id: preparedChapter.chapterId,
       mangaId: preparedChapter.sourceManga.mangaId,
       pages: uniquePages,
     }
-  }
-
-  private async resolveChapterPageRefs(
-    chapter: Chapter,
-    chapterUrl: string
-  ): Promise<NineMangaChapterPage[]> {
-    const attemptedSourceUrls = new Set<string>()
-    const failedSourceChapterIds = new Set<string>()
-    console.log(
-      `[NineManga] Reader unlock cookies prepared before reader request: book=${chapter.additionalInfo?.bookId ?? 'unknown'}, chapter=${this.chapterIdFromUrl(chapter.additionalInfo?.url ?? chapter.chapterId) || 'unknown'}, url=${chapterUrl}`
-    )
-    const firstPage = await this.getHtml(chapterUrl)
-    let pageRefs = this.parser.parseChapterPage(firstPage.body, firstPage.url)
-
-    console.log(
-      `[NineManga] Reader first page ${firstPage.status} parsed ${pageRefs.length} page refs`
-    )
-
-    if (pageRefs.length > 0) return pageRefs
-
-    const requestedCanonicalReader = this.isCanonicalNineMangaReaderUrl(chapterUrl)
-    const responseCanonicalReader = this.isCanonicalNineMangaReaderUrl(firstPage.url)
-    const shouldAvoidExternalSource = requestedCanonicalReader || responseCanonicalReader
-
-    if (!shouldAvoidExternalSource) {
-      pageRefs = await this.resolveSourceSelection(
-        chapter,
-        firstPage.body,
-        firstPage.url,
-        attemptedSourceUrls,
-        failedSourceChapterIds
-      )
-      if (pageRefs.length > 0) return pageRefs
-    } else {
-      console.log(
-        `[NineManga] Skipping external source selector because requested reader was canonical: requested=${chapterUrl}, response=${firstPage.url}`
-      )
-    }
-
-    const candidates = this.chapterReaderCandidates(chapterUrl).filter(
-      (candidate) => candidate !== chapterUrl
-    )
-
-    for (const candidate of candidates) {
-      const candidateChapterId = this.chapterIdFromUrl(candidate)
-      if (
-        candidateChapterId &&
-        failedSourceChapterIds.has(candidateChapterId) &&
-        !this.isCanonicalNineMangaReaderUrl(candidate)
-      ) {
-        console.log(`[NineManga] Skipping failed external/source candidate for cid ${candidateChapterId}`)
-        continue
-      }
-
-      const page = await this.getHtml(candidate)
-      pageRefs = this.parser.parseChapterPage(page.body, page.url)
-      if (pageRefs.length > 0) return pageRefs
-
-      const requestedCandidateCanonical = this.isCanonicalNineMangaReaderUrl(candidate)
-      const responseCandidateCanonical = this.isCanonicalNineMangaReaderUrl(page.url)
-      const shouldAvoidCandidateExternalSource = requestedCandidateCanonical || responseCandidateCanonical
-
-      if (!shouldAvoidCandidateExternalSource) {
-        pageRefs = await this.resolveSourceSelection(
-          chapter,
-          page.body,
-          page.url,
-          attemptedSourceUrls,
-          failedSourceChapterIds
-        )
-        if (pageRefs.length > 0) return pageRefs
-      } else {
-        console.log(
-          `[NineManga] Skipping external source selector on canonical fallback reader request: requested=${candidate}, response=${page.url}`
-        )
-      }
-
-      console.log(`[NineManga] No reader pages found at ${candidate}; trying fallback`)
-    }
-
-    return []
-  }
-
-  private async resolveSourceSelection(
-    chapter: Chapter,
-    html: string,
-    referer: string,
-    attemptedSourceUrls: Set<string>,
-    failedSourceChapterIds: Set<string>
-  ): Promise<NineMangaChapterPage[]> {
-    const sourceSelectionUrl = this.parser.parseSourceSelectionUrl(html)
-    if (!sourceSelectionUrl) return []
-
-    const externalChapterId =
-      this.parser.parseExternalSourceChapterId(html) ||
-      this.parser.parseExternalSourceChapterIdFromUrl(sourceSelectionUrl) ||
-      this.chapterIdFromUrl(sourceSelectionUrl)
-    const sourceKey = this.sourceFlowKey(sourceSelectionUrl)
-
-    if (attemptedSourceUrls.has(sourceKey)) {
-      console.log(`[NineManga] Skipping already attempted source selector: ${sourceSelectionUrl}`)
-      if (externalChapterId) failedSourceChapterIds.add(externalChapterId)
-      return []
-    }
-
-    if (externalChapterId && failedSourceChapterIds.has(externalChapterId)) {
-      console.log(`[NineManga] Skipping source selector for failed cid ${externalChapterId}`)
-      return []
-    }
-
-    attemptedSourceUrls.add(sourceKey)
-    if (externalChapterId) this.setReaderUnlockCookie(chapter, externalChapterId)
-
-    console.log(`[NineManga] Following chapter source selector: ${sourceSelectionUrl}`)
-    const sourcePage = await this.getHtml(sourceSelectionUrl, referer)
-    let pageRefs = this.parser.parseChapterPage(sourcePage.body, sourcePage.url)
-    if (pageRefs.length > 0) return pageRefs
-
-    const nestedSourceUrl = this.parser.parseSourceSelectionUrl(sourcePage.body)
-    if (nestedSourceUrl && nestedSourceUrl !== sourceSelectionUrl) {
-      console.log(`[NineManga] Following nested chapter source selector: ${nestedSourceUrl}`)
-      const nestedPage = await this.getHtml(nestedSourceUrl, sourcePage.url)
-      pageRefs = this.parser.parseChapterPage(nestedPage.body, nestedPage.url)
-      if (pageRefs.length > 0) return pageRefs
-    }
-
-    console.log(`[NineManga] Source selector did not produce reader pages: ${sourceSelectionUrl}`)
-    if (externalChapterId) failedSourceChapterIds.add(externalChapterId)
-    return []
   }
 
   async getDiscoverSections(): Promise<DiscoverSection[]> {
@@ -416,6 +284,194 @@ export class NineMangaClient {
     }
   }
 
+  private async resolveReaderImages(chapter: Chapter, chapterUrl: string): Promise<string[]> {
+    const state: ReaderResolutionState = {
+      visitedUrls: new Set<string>(),
+      gateUrls: [],
+      requestCount: 0,
+    }
+    const candidates = this.readerDirectCandidates(chapter, chapterUrl)
+    this.rememberGateUrl(chapterUrl, state)
+
+    console.log(`[NineManga] Reader direct candidates: ${candidates.length}`)
+
+    for (const candidate of candidates) {
+      const pages = await this.resolveNineMangaReaderCandidate(candidate, state)
+      if (pages.length > 0) return pages
+    }
+
+    for (const gateUrl of uniqueStrings(state.gateUrls)) {
+      const pages = await this.resolveReaderGateFallback(gateUrl, state)
+      if (pages.length > 0) return pages
+    }
+
+    return []
+  }
+
+  private async resolveNineMangaReaderCandidate(
+    url: string,
+    state: ReaderResolutionState
+  ): Promise<string[]> {
+    const response = await this.getReaderHtml(url, BASE_URL, state)
+    if (!response) return []
+
+    return this.resolveReaderResponse(response, state)
+  }
+
+  private async resolveReaderResponse(
+    response: TextResponse,
+    state: ReaderResolutionState
+  ): Promise<string[]> {
+    const classification = this.parser.classifyReaderPage(response.body, response.url)
+    this.logReaderClassification(response.url, classification)
+
+    if (classification === 'source-gate') {
+      this.rememberGateUrl(this.parser.parseSourceSelectionUrl(response.body), state)
+      return []
+    }
+
+    if (classification === 'external-ad') {
+      this.rememberGateUrl(response.url, state)
+      return []
+    }
+
+    if (classification === 'cloudflare' || classification === 'dead') return []
+
+    const directImages = this.parser.parseReaderImageUrls(response.body, response.url)
+    const hasInlineImageList = response.body.toLowerCase().includes('all_imgs_url')
+    if (hasInlineImageList && directImages.length > 0) return directImages
+
+    const pageUrls = this.parser.parseReaderPageUrls(response.body, response.url)
+    if (pageUrls.length === 0 || directImages.length > 1) return directImages
+
+    const pages: string[] = [...directImages]
+    for (const pageUrl of pageUrls) {
+      if (!this.isNineMangaUrl(pageUrl)) {
+        this.rememberGateUrl(pageUrl, state)
+        continue
+      }
+
+      const pageResponse = await this.getReaderHtml(pageUrl, response.url, state)
+      if (!pageResponse) continue
+
+      const pageClassification = this.parser.classifyReaderPage(pageResponse.body, pageResponse.url)
+      this.logReaderClassification(pageResponse.url, pageClassification)
+
+      if (pageClassification === 'source-gate') {
+        this.rememberGateUrl(this.parser.parseSourceSelectionUrl(pageResponse.body), state)
+        continue
+      }
+
+      if (pageClassification !== 'real-reader') continue
+
+      pages.push(...this.parser.parseReaderImageUrls(pageResponse.body, pageResponse.url))
+    }
+
+    return uniqueStrings(pages)
+  }
+
+  private async resolveReaderGateFallback(
+    gateUrl: string,
+    state: ReaderResolutionState
+  ): Promise<string[]> {
+    const response = await this.getReaderHtml(gateUrl, BASE_URL, state)
+    if (!response) return []
+
+    const directImages = this.parser.parseReaderImageUrls(response.body, response.url)
+    if (directImages.length > 0) return directImages
+
+    const redirectUrl = this.parser.parseReaderRedirectUrl(response.body, response.url)
+    const sourceUrl = this.parser.parseSourceSelectionUrl(response.body)
+    const nextUrls = uniqueStrings([redirectUrl, sourceUrl].filter(Boolean) as string[])
+
+    for (const nextUrl of nextUrls) {
+      if (this.isNineMangaUrl(nextUrl)) {
+        const pages = await this.resolveNineMangaReaderCandidate(this.withReaderWarning(nextUrl), state)
+        if (pages.length > 0) return pages
+        continue
+      }
+
+      if (this.isKnownGateUrl(nextUrl)) {
+        const pages = await this.resolveReaderGateFallback(nextUrl, state)
+        if (pages.length > 0) return pages
+      }
+    }
+
+    return []
+  }
+
+  private async getReaderHtml(
+    url: string,
+    referer: string,
+    state: ReaderResolutionState
+  ): Promise<TextResponse | undefined> {
+    const normalizedUrl = this.isNineMangaUrl(url)
+      ? this.withReaderWarning(normalizeUrl(url, BASE_URL))
+      : normalizeUrl(url, BASE_URL)
+    const key = this.sourceFlowKey(normalizedUrl)
+
+    if (!normalizedUrl || state.visitedUrls.has(key)) return undefined
+
+    if (state.requestCount >= MAX_READER_REQUESTS) {
+      console.log(`[NineManga] Reader request limit reached at ${MAX_READER_REQUESTS}`)
+      return undefined
+    }
+
+    state.visitedUrls.add(key)
+    state.requestCount += 1
+
+    const response = await getText(normalizedUrl, await this.getReaderHeaders(referer))
+    if (!this.isNineMangaUrl(response.url) && this.isKnownGateUrl(response.url)) {
+      this.rememberGateUrl(response.url, state)
+    }
+
+    return response
+  }
+
+  private readerDirectCandidates(chapter: Chapter, chapterUrl: string): string[] {
+    const candidates: string[] = []
+    const normalizedChapterUrl = normalizeUrl(chapterUrl, BASE_URL)
+
+    if (this.isNineMangaUrl(normalizedChapterUrl)) {
+      candidates.push(this.withReaderWarning(normalizedChapterUrl))
+    }
+
+    const canonicalUrl = this.canonicalNineMangaChapterUrl(chapter)
+    const readerBases = uniqueStrings([canonicalUrl, normalizedChapterUrl].filter((url) => this.isNineMangaUrl(url)))
+
+    for (const readerBase of readerBases) {
+      const base = this.readerBaseUrl(readerBase)
+      const stem = base.endsWith('.html')
+        ? base.replace(/\.html$/i, '')
+        : base.replace(/\/$/i, '')
+
+      candidates.push(this.withReaderWarning(`${stem}-10-1.html`))
+      candidates.push(this.withReaderWarning(`${stem}-6-1.html`))
+      candidates.push(this.withReaderWarning(`${stem}-3-1.html`))
+      candidates.push(this.withReaderWarning(`${stem}-1-1.html`))
+      candidates.push(this.withReaderWarning(`${stem}.html`))
+      candidates.push(this.withReaderWarning(`${stem}/`))
+    }
+
+    return uniqueStrings(candidates.filter(Boolean))
+  }
+
+  private rememberGateUrl(url: string | undefined, state: ReaderResolutionState): void {
+    if (!url) return
+
+    const normalizedUrl = normalizeUrl(url, BASE_URL)
+    if (!normalizedUrl || this.isNineMangaUrl(normalizedUrl)) return
+    if (!this.isKnownGateUrl(normalizedUrl)) return
+
+    state.gateUrls.push(normalizedUrl)
+  }
+
+  private logReaderClassification(url: string, classification: NineMangaReaderPageKind): void {
+    if (classification === 'real-reader') return
+
+    console.log(`[NineManga] Reader classified ${classification}: ${url}`)
+  }
+
   private sectionType(sectionId: string): DiscoverSectionType {
     if (sectionId === 'latest') return DiscoverSectionType.chapterUpdates
     if (sectionId === 'hot') return DiscoverSectionType.featured
@@ -480,10 +536,33 @@ export class NineMangaClient {
     return withQueryParam(url, BASE_URL, 'waring', '1')
   }
 
+  private withReaderWarning(url: string): string {
+    if (!url || !this.isNineMangaUrl(url) || !url.includes('/chapter/')) return url
+
+    return withQueryParam(url, BASE_URL, 'waring', '1')
+  }
+
   private isMangaUrl(url: string): boolean {
     const normalized = normalizeUrl(url, BASE_URL)
     const path = normalized.match(/^[a-z][a-z0-9+.-]*:\/\/[^/?#]+([^?#]*)/i)?.[1] ?? normalized
     return path.includes('/manga/')
+  }
+
+  private isNineMangaUrl(url: string): boolean {
+    return /^https?:\/\/(?:www\.)?ninemanga\.com(?:[/:?#]|$)/i.test(normalizeUrl(url, BASE_URL))
+  }
+
+  private isKnownGateUrl(url: string): boolean {
+    const normalized = normalizeUrl(url, BASE_URL).toLowerCase()
+    if (this.isNineMangaUrl(normalized)) return false
+
+    return (
+      normalized.includes('/go/ennm/') ||
+      normalized.includes('/go/jump/') ||
+      normalized.includes('type=enninemanga') ||
+      normalized.includes('sweettoothrecipes.com') ||
+      normalized.includes('financemasterpro.com')
+    )
   }
 
   private resolveReaderChapterUrl(chapter: Chapter): string {
@@ -525,43 +604,6 @@ export class NineMangaClient {
     )
   }
 
-  private stripWarningParamFromChapterUrl(url: string): string {
-    if (!url.includes('/chapter/')) return url
-
-    return url
-      .replace(/\?waring=1&/i, '?')
-      .replace(/&waring=1&/i, '&')
-      .replace(/\?waring=1$/i, '')
-      .replace(/&waring=1$/i, '')
-      .replace(/\?$/i, '')
-      .replace(/&$/i, '')
-  }
-
-  private isCanonicalNineMangaReaderUrl(url: string): boolean {
-    const normalized = normalizeUrl(url, BASE_URL).toLowerCase()
-
-    return (
-      /^https:\/\/(?:www\.)?ninemanga\.com\/chapter\//.test(normalized) &&
-      /\.html(?:[?#].*)?$/.test(normalized)
-    )
-  }
-
-  private chapterReaderCandidates(url: string): string[] {
-    const base = this.readerBaseUrl(url)
-    const stem = base.endsWith('.html')
-      ? base.replace(/\.html$/i, '')
-      : base.replace(/\/$/i, '')
-    const candidates = [url]
-
-    candidates.push(`${stem}-10-1.html`)
-    candidates.push(`${stem}-6-1.html`)
-    candidates.push(`${stem}-3-1.html`)
-    candidates.push(`${stem}-1-1.html`)
-    candidates.push(`${stem}/`)
-
-    return uniqueStrings(candidates.filter(Boolean))
-  }
-
   private readerBaseUrl(url: string): string {
     const base = url.split('?')[0] ?? url
     return base.replace(/-\d+-\d+\.html$/i, '.html')
@@ -574,6 +616,14 @@ export class NineMangaClient {
   private async getHeaders(referer = BASE_URL) {
     return mergeHeaders(await defaultBrowserHeaders(referer), {
       accept: 'text/html,application/json;q=0.9,*/*;q=0.8',
+    })
+  }
+
+  private async getReaderHeaders(referer = BASE_URL) {
+    return mergeHeaders(await defaultBrowserHeaders(BASE_URL), {
+      accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+      cookie: 'ninemanga_list_num=1',
+      referer: this.isNineMangaUrl(referer) ? referer : BASE_URL,
     })
   }
 
@@ -630,6 +680,23 @@ export class NineMangaClient {
         expires,
       })
       console.log(`[NineManga] Set reader unlock cookies for book ${bookId}, chapter ${chapterId}, domain ${domain}`)
+    }
+  }
+
+  private setReaderListCookie(): void {
+    if (!this.setCookie) return
+
+    const expires = new Date(Date.now() + 24 * 60 * 60 * 1000)
+    const domains = ['ninemanga.com', 'www.ninemanga.com', '.ninemanga.com']
+
+    for (const domain of domains) {
+      this.setCookie({
+        name: 'ninemanga_list_num',
+        value: '1',
+        domain,
+        path: '/',
+        expires,
+      })
     }
   }
 
