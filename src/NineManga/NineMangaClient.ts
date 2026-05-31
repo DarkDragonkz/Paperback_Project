@@ -131,12 +131,42 @@ export class NineMangaClient {
   }
 
   async getChapters(sourceManga: SourceManga): Promise<Chapter[]> {
-    const details = await this.getMangaData(sourceManga.mangaId)
-    return details.chapters.map((chapter) => ({
+  const details = await this.getMangaData(sourceManga.mangaId)
+
+  return this.sortChaptersForReaderProgression(
+    details.chapters.map((chapter) => ({
       ...chapter,
       sourceManga,
     }))
-  }
+  )
+}
+private sortChaptersForReaderProgression(chapters: Chapter[]): Chapter[] {
+  return [...chapters]
+    .sort((a, b) => {
+      const chapterDiff = this.chapterProgressionNumber(a) - this.chapterProgressionNumber(b)
+      if (chapterDiff !== 0) return chapterDiff
+
+      const sortingDiff = (a.sortingIndex ?? 0) - (b.sortingIndex ?? 0)
+      if (sortingDiff !== 0) return sortingDiff
+
+      return (a.title ?? '').localeCompare(b.title ?? '')
+    })
+    .map((chapter, index) => ({
+      ...chapter,
+      sortingIndex: index,
+    }))
+}
+
+private chapterProgressionNumber(chapter: Chapter): number {
+  const chapNum = chapter.chapNum
+  if (typeof chapNum === 'number' && Number.isFinite(chapNum)) return chapNum
+
+  const title = chapter.title ?? ''
+  if (/\bhiatus\b/i.test(title)) return 0
+
+  const match = title.match(/\b(?:ch(?:apter)?\.?\s*)?(\d+(?:\.\d+)?)/i)
+  return match ? Number(match[1]) : Number.MAX_SAFE_INTEGER
+}
 
   async getChapterDetails(chapter: Chapter): Promise<ChapterDetails> {
     const preparedChapter = await this.prepareReaderChapter(chapter)
