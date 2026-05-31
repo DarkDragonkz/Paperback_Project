@@ -1,47 +1,72 @@
-import { NINEMANGA_LANGUAGE_CONFIGS, type NineMangaLanguageId } from './NineMangaLanguageConfig'
+import { Form, Section, SelectRow } from '@paperback/types'
 
-export function registerNineMangaSettings(): void {
-  try {
-    const options = Object.values(NINEMANGA_LANGUAGE_CONFIGS).map((cfg) => ({
-      label: cfg.label,
-      value: cfg.id,
-    }))
+import {
+  NINEMANGA_LANGUAGE_CONFIGS,
+  type NineMangaLanguageId,
+} from './NineMangaLanguageConfig'
 
-    const payload = {
-      key: 'ninemanga.language',
-      title: 'NineManga Language',
-      description: 'Select NineManga language/region for the source',
-      type: 'select',
-      default: 'en' as NineMangaLanguageId,
-      options,
+export const NINEMANGA_LANGUAGE_STATE_KEY = 'ninemanga_language'
+
+export function readNineMangaLanguageSetting(): NineMangaLanguageId {
+  const stored = Application.getState(NINEMANGA_LANGUAGE_STATE_KEY)
+
+  const value = Array.isArray(stored)
+    ? stored[0]
+    : typeof stored === 'string'
+      ? stored
+      : undefined
+
+  return isNineMangaLanguageId(value) ? value : 'en'
+}
+
+function isNineMangaLanguageId(value: unknown): value is NineMangaLanguageId {
+  return (
+    typeof value === 'string' &&
+    Object.prototype.hasOwnProperty.call(NINEMANGA_LANGUAGE_CONFIGS, value)
+  )
+}
+
+export class NineMangaSettingsForm extends Form {
+  private readonly languageOptions = Object.values(NINEMANGA_LANGUAGE_CONFIGS).map((cfg) => ({
+    id: cfg.id,
+    title: cfg.label,
+  }))
+
+  override getSections() {
+    return [
+      Section(
+        {
+          id: 'ninemanga_settings',
+          footer: 'Select the NineManga language/region used by this source.',
+        },
+        [
+          SelectRow(NINEMANGA_LANGUAGE_STATE_KEY, {
+            title: 'Language',
+            subtitle: 'Choose which NineManga site this source should use',
+            value: [readNineMangaLanguageSetting()],
+            options: this.languageOptions,
+            minItemCount: 1,
+            maxItemCount: 1,
+            onValueChange: Application.Selector(
+              this as NineMangaSettingsForm,
+              'handleLanguageChange'
+            ),
+          }),
+        ]
+      ),
+    ]
+  }
+
+  async handleLanguageChange(value: string[]): Promise<void> {
+    const nextLanguage = value[0]
+
+    if (!isNineMangaLanguageId(nextLanguage)) {
+      Application.setState(['en'], NINEMANGA_LANGUAGE_STATE_KEY)
+    } else {
+      Application.setState([nextLanguage], NINEMANGA_LANGUAGE_STATE_KEY)
     }
 
-    // Try several possible Application APIs that hosts might provide
-    // These calls are best-effort and will be no-ops if the API is missing
-    // @ts-ignore
-    if (typeof Application !== 'undefined') {
-      // @ts-ignore
-      if (typeof Application.registerSourceSettings === 'function') {
-        // @ts-ignore
-        Application.registerSourceSettings('ninemanga', [payload])
-        return
-      }
-
-      // @ts-ignore
-      if (typeof Application.registerSettings === 'function') {
-        // @ts-ignore
-        Application.registerSettings([payload])
-        return
-      }
-
-      // @ts-ignore
-      if (typeof Application.registerSetting === 'function') {
-        // @ts-ignore
-        Application.registerSetting(payload.key, payload)
-        return
-      }
-    }
-  } catch (e) {
-    console.log('[NineManga] Could not register settings:', String(e))
+    this.reloadForm()
+    Application.invalidateDiscoverSections()
   }
 }
