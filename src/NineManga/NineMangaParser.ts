@@ -183,12 +183,48 @@ export class NineMangaParser {
     const pageUrls: string[] = []
 
     $('select.sl-page option[value], select#page option[value], select[name="page"] option[value]').each((_, option) => {
-      const rawValue = $(option).attr('value') ?? ''
-      const pageUrl = this.withWarningParam(normalizeUrl(rawValue, currentUrl || this.baseUrl))
+      const rawValue = this.decodeHtmlEntities($(option).attr('value') ?? '').trim()
+      const pageUrl = this.normalizeReaderPageUrl(rawValue, currentUrl || this.baseUrl)
       if (pageUrl) pageUrls.push(pageUrl)
     })
 
     return uniqueStrings(pageUrls)
+  }
+
+  private normalizeReaderPageUrl(rawValue: string, currentUrl = this.baseUrl): string {
+    if (!rawValue) return ''
+
+    let value = rawValue
+    if (/^chapter\//i.test(value)) value = `/${value}`
+
+    const candidates: string[] = []
+
+    try {
+      candidates.push(new URL(value, currentUrl || this.baseUrl).toString())
+    } catch {
+      // Ignore and fall back to the shared normalizer below.
+    }
+
+    candidates.push(normalizeUrl(value, currentUrl || this.baseUrl))
+    candidates.push(normalizeUrl(value, this.baseUrl))
+
+    const currentChapterPrefix = this.currentChapterDirectory(currentUrl)
+    if (currentChapterPrefix && !value.includes('/')) {
+      candidates.push(normalizeUrl(`${currentChapterPrefix}/${value}`, this.baseUrl))
+    }
+
+    for (const candidate of uniqueStrings(candidates)) {
+      const normalized = this.withWarningParam(candidate)
+      if (normalized && this.isNineMangaUrl(normalized) && normalized.includes('/chapter/')) return normalized
+    }
+
+    return ''
+  }
+
+  private currentChapterDirectory(currentUrl: string): string {
+    const normalized = normalizeUrl(currentUrl, this.baseUrl)
+    const match = normalized.match(/^https?:\/\/[^/]+(\/chapter\/[^/]+)\/[^/?#]+/i)
+    return match?.[1] ?? ''
   }
 
   classifyReaderPage(html: string, currentUrl: string): NineMangaReaderPageKind {
