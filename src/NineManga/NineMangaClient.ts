@@ -50,6 +50,7 @@ interface ReaderResolutionState {
   chapterUrl: string
   bookId?: string
   chapterId?: string
+  gateCookies: Record<string, string>
 }
 
 interface GateTextResponse extends TextResponse {
@@ -306,6 +307,7 @@ export class NineMangaClient {
       chapterUrl,
       bookId: chapter.additionalInfo?.bookId,
       chapterId: this.chapterIdFromUrl(chapter.additionalInfo?.url ?? chapter.chapterId) || undefined,
+      gateCookies: {},
     }
     const candidates = this.readerDirectCandidates(chapter, chapterUrl)
     this.rememberGateUrl(chapterUrl, state)
@@ -418,6 +420,28 @@ export class NineMangaClient {
       )
 
       if (!this.hasExternalReaderMarkers(markers)) {
+        const alternateResponse = await this.resolveFinanceMasterProAlternateReader(response.url, response.body, state)
+        if (alternateResponse) {
+          const alternateMarkers = this.parser.parseExternalReaderMarkers(
+            alternateResponse.body,
+            alternateResponse.url,
+            state.bookId,
+            state.chapterId
+          )
+          console.log(
+            `[NineManga] External reader markers: allImgs=${alternateMarkers.allImgs} mangaPic=${alternateMarkers.mangaPic} bookId=${alternateMarkers.bookId} chapterId=${alternateMarkers.chapterId} movietop=${alternateMarkers.movietop}`
+          )
+
+          if (this.hasExternalReaderMarkers(alternateMarkers)) {
+            console.log(`[NineManga] External reader detected: ${alternateResponse.url}`)
+            const alternatePages = this.parser.parseReaderImageUrls(alternateResponse.body, alternateResponse.url)
+            this.logExtractedImages(alternatePages)
+            if (alternatePages.length > 0) return alternatePages
+
+            throw new Error('NineManga reader: no readable images found after gate fallback.')
+          }
+        }
+
         throw new Error('NineManga reader: FinanceMasterPro reached without reader markers. Gate context/referrer may be missing.')
       }
 
@@ -532,11 +556,12 @@ export class NineMangaClient {
     const request = {
       url: normalizedUrl,
       method: 'GET',
-      headers: await this.getGateHeaders(referer),
+      headers: await this.getGateHeaders(referer, normalizedUrl, state),
     }
     const [response, data] = await Application.scheduleRequest(request)
     const body = Application.arrayBufferToUTF8String(data)
     const location = this.headerValue(response.headers, 'location')
+    this.rememberGateCookies(response.headers, normalizedUrl, state)
 
     console.log(`[NineManga] Gate response: status=${response.status} url=${response.url}`)
     console.log(`[NineManga] Gate redirect location: ${location || 'none'}`)
@@ -558,6 +583,69 @@ export class NineMangaClient {
       body,
       location,
     }
+  }
+
+  private async resolveFinanceMasterProAlternateReader(
+    url: string,
+    html: string,
+    state: ReaderResolutionState
+  ): Promise<GateTextResponse | undefined> {
+    const candidates = this.financeMasterProAlternateUrls(url, html)
+    if (candidates.length === 0) return undefined
+
+    for (const candidate of candidates) {
+      console.log(`[NineManga] Finance alternate reader url: ${candidate}`)
+      const response = await this.getGateHtml(candidate, SWEETTOOTH_BASE_URL, state)
+      if (!response) continue
+
+      const markers = this.parser.parseExternalReaderMarkers(
+        response.body,
+        response.url,
+        state.bookId,
+        state.chapterId
+      )
+      console.log(
+        `[NineManga] Finance alternate markers: allImgs=${markers.allImgs} mangaPic=${markers.mangaPic} bookId=${markers.bookId} chapterId=${markers.chapterId} movietop=${markers.movietop}`
+      )
+
+      if (this.hasExternalReaderMarkers(markers)) return response
+    }
+
+    return undefined
+  }
+
+  private financeMasterProAlternateUrls(url: string, html: string): string[] {
+    const normalized = normalizeUrl(url, FINANCE_MASTER_PRO_BASE_URL)
+    if (!this.isFinanceMasterProUrl(normalized)) return []
+
+    const withoutQuery = normalized.split(/[?#]/)[0] ?? normalized
+    const path = withoutQuery.match(/^https?:\/\/[^/?#]+([^?#]*)/i)?.[1] ?? ''
+    const hostlessPath = path.replace(/\/$/, '')
+    const postId = this.financePostIdFromHtml(html)
+    const candidates: string[] = []
+
+    if (postId && hostlessPath) {
+      candidates.push(`https://www.financemasterpro.com${hostlessPath}/${postId}.html`)
+    }
+
+    if (!/\.html$/i.test(hostlessPath) && hostlessPath) {
+      candidates.push(`https://www.financemasterpro.com${hostlessPath}.html`)
+    }
+
+    if (!normalized.includes('://www.')) {
+      candidates.push(normalized.replace('://financemasterpro.com', '://www.financemasterpro.com'))
+    }
+
+    return uniqueStrings(candidates)
+  }
+
+  private financePostIdFromHtml(html: string): string {
+    return (
+      html.match(/\bpost-(\d{2,})\b/i)?.[1] ||
+      html.match(/\bpost[_-]?id["']?\s*[:=]\s*["']?(\d{2,})/i)?.[1] ||
+      html.match(/[?&]p=(\d{2,})\b/i)?.[1] ||
+      ''
+    )
   }
 
   private readerDirectCandidates(chapter: Chapter, chapterUrl: string): string[] {
@@ -816,10 +904,16 @@ export class NineMangaClient {
     })
   }
 
-  private async getGateHeaders(referer: string): Promise<HeaderMap> {
+  private async getGateHeaders(
+    referer: string,
+    url: string,
+    state: ReaderResolutionState
+  ): Promise<HeaderMap> {
+    const cookie = this.gateCookieHeader(url, state)
+
     return mergeHeaders(await defaultBrowserHeaders(referer), {
       accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-      cookie: 'ninemanga_list_num=1',
+      cookie: cookie ? `ninemanga_list_num=1; ${cookie}` : 'ninemanga_list_num=1',
       referer,
     })
   }
@@ -830,6 +924,49 @@ export class NineMangaClient {
     )
 
     return match?.[1] ?? ''
+  }
+
+  private rememberGateCookies(
+    headers: Record<string, string>,
+    url: string,
+    state: ReaderResolutionState
+  ): void {
+    const setCookie = this.headerValue(headers, 'set-cookie')
+    if (!setCookie) return
+
+    const host = this.hostFromUrl(url)
+    if (!host) return
+
+    const cookies = this.splitSetCookieHeader(setCookie)
+    let stored = 0
+
+    for (const cookie of cookies) {
+      const pair = cookie.split(';')[0]?.trim()
+      if (!pair || !pair.includes('=')) continue
+
+      state.gateCookies[`${host}:${pair.split('=')[0]}`] = pair
+      stored += 1
+    }
+
+    if (stored > 0) console.log(`[NineManga] Gate cookies stored for ${host}: ${stored}`)
+  }
+
+  private gateCookieHeader(url: string, state: ReaderResolutionState): string {
+    const host = this.hostFromUrl(url)
+    if (!host) return ''
+
+    return Object.entries(state.gateCookies)
+      .filter(([key]) => key.startsWith(`${host}:`))
+      .map(([, value]) => value)
+      .join('; ')
+  }
+
+  private splitSetCookieHeader(value: string): string[] {
+    return value.split(/,(?=\s*[^;,=\s]+=[^;,]+)/g).map((cookie) => cookie.trim()).filter(Boolean)
+  }
+
+  private hostFromUrl(url: string): string {
+    return normalizeUrl(url, BASE_URL).match(/^https?:\/\/([^/?#]+)/i)?.[1]?.toLowerCase().replace(/^www\./, '') ?? ''
   }
 
   private logExtractedImages(images: string[]): void {
