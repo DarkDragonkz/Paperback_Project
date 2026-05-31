@@ -1,4 +1,4 @@
-﻿import {
+import {
   ContentRating,
   DiscoverSectionType,
   EndOfPageResults,
@@ -558,44 +558,6 @@ private chapterProgressionNumber(chapter: Chapter): number {
     const directImages = this.parser.parseReaderImageUrls(response.body, response.url)
     console.log(`[NineManga] Gate fallback reader images parsed: ${directImages.length}`)
     if (directImages.length > 0) {
-      if (this.config.flowType === 'localized-tascabile') {
-        const pageUrls = this.parser.parseReaderPageUrls(response.body, response.url)
-        console.log(`[NineManga] Localized reader page URLs parsed: ${pageUrls.length}`)
-
-        if (pageUrls.length > 1) {
-          const pages: string[] = [...directImages]
-
-          for (const pageUrl of uniqueStrings(pageUrls).slice(0, MAX_READER_REQUESTS)) {
-            const normalizedPageUrl = this.withReaderWarning(normalizeUrl(pageUrl, this.baseUrl()))
-            if (!normalizedPageUrl) continue
-            if (this.sourceFlowKey(normalizedPageUrl) === this.sourceFlowKey(response.url)) continue
-
-            if (!this.isNineMangaReaderUrl(normalizedPageUrl)) {
-              this.rememberGateUrl(normalizedPageUrl, state)
-              continue
-            }
-
-            const pageResponse = await this.getReaderHtml(normalizedPageUrl, response.url, state)
-            if (!pageResponse) continue
-
-            const pageClassification = this.parser.classifyReaderPage(pageResponse.body, pageResponse.url)
-            this.logReaderClassification(pageResponse.url, pageClassification)
-
-            if (pageClassification !== 'real-reader') continue
-
-            const pageImages = this.parser.parseReaderImageUrls(pageResponse.body, pageResponse.url)
-            console.log(`[NineManga] Localized reader page images parsed: ${pageImages.length} url=${pageResponse.url}`)
-            pages.push(...pageImages)
-          }
-
-          const uniquePages = uniqueStrings(pages)
-          if (uniquePages.length > directImages.length) {
-            this.logExtractedImages(uniquePages)
-            return uniquePages
-          }
-        }
-      }
-
       this.logExtractedImages(directImages)
       return directImages
     }
