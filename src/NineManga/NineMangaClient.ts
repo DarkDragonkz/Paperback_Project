@@ -952,15 +952,17 @@ private chapterProgressionNumber(chapter: Chapter): number {
     }
   }
 
-  private financeChapterEndpointUrl(chapterId: string, htmlSuffix: boolean): string {
-    const suffix = htmlSuffix ? '.html' : '/'
-    return `${FINANCE_MASTER_PRO_BASE_URL}c/enninemanga/${encodeURIComponent(chapterId)}${suffix}`
-  }
-
-  private isFinanceChapterEndpointUrl(url: string): boolean {
-    const normalized = normalizeUrl(url, FINANCE_MASTER_PRO_BASE_URL)
-    return /^https?:\/\/(?:www\.)?financemasterpro\.com\/c\/enninemanga\/[^/?#]+(?:\.html|\/)?(?:[?#].*)?$/i.test(normalized)
-  }
+private financeChapterEndpointUrl(chapterId: string, htmlSuffix: boolean): string {
+  const suffix = htmlSuffix ? '.html' : '/'
+  return `${FINANCE_MASTER_PRO_BASE_URL}c/${this.financeMangaType()}/${encodeURIComponent(chapterId)}${suffix}`
+}
+private isFinanceChapterEndpointUrl(url: string): boolean {
+  const normalized = normalizeUrl(url, FINANCE_MASTER_PRO_BASE_URL)
+  return new RegExp(
+    `^https?:\\/\\/(?:www\\.)?financemasterpro\\.com\\/c\\/${this.financeMangaType()}\\/[^/?#]+(?:\\.html|\\/)?(?:[?#].*)?$`,
+    'i'
+  ).test(normalized)
+}
 
   private allowOneFinanceCanonicalCookieRetry(url: string, state: ReaderResolutionState): void {
     const key = this.sourceFlowKey(normalizeUrl(url, FINANCE_MASTER_PRO_BASE_URL))
@@ -1190,11 +1192,35 @@ private chapterProgressionNumber(chapter: Chapter): number {
     return this.baseUrl()
   }
 
-  private financeJumpUrlForState(state: ReaderResolutionState): string {
-    if (!state.chapterId) return ''
-
-    return `${FINANCE_MASTER_PRO_BASE_URL}go/jump/?type=enninemanga&cid=${encodeURIComponent(state.chapterId)}`
+private financeMangaType(): string {
+  switch (this.config.id) {
+    case 'es':
+      return 'esninemanga'
+    case 'ru':
+      return 'runinemanga'
+    case 'en':
+    default:
+      return 'enninemanga'
   }
+}
+
+private financeReaderLangCode(): string {
+  switch (this.config.id) {
+    case 'es':
+      return 'es'
+    case 'ru':
+      return 'ru'
+    case 'en':
+    default:
+      return 'en'
+  }
+}
+
+private financeJumpUrlForState(state: ReaderResolutionState): string {
+  if (!state.chapterId) return ''
+
+  return `${FINANCE_MASTER_PRO_BASE_URL}go/jump/?type=${this.financeMangaType()}&cid=${encodeURIComponent(state.chapterId)}`
+}
 
   private hasExternalReaderMarkers(markers: {
     allImgs: boolean
@@ -1355,6 +1381,7 @@ private chapterProgressionNumber(chapter: Chapter): number {
     if (!financePostId || !state.chapterId) return
 
     const shouldLog = !state.financeGateCookiesApplied
+    const readerLangCode = this.financeReaderLangCode()
 
     this.rememberGateCookiePair('financemasterpro.com', `lrgarden_visit_check_${financePostId}=${state.chapterId}`, state)
     this.rememberGateCookiePair('www.financemasterpro.com', `lrgarden_visit_check_${financePostId}=${state.chapterId}`, state)
@@ -1362,9 +1389,9 @@ private chapterProgressionNumber(chapter: Chapter): number {
     this.rememberGateCookiePair('financemasterpro.com', 'lrgarden_webp_valid=true', state)
     this.rememberGateCookiePair('www.financemasterpro.com', 'lrgarden_webp_valid=true', state)
     this.rememberGateCookiePair('.financemasterpro.com', 'lrgarden_webp_valid=true', state)
-    this.rememberGateCookiePair('financemasterpro.com', 'lrgarden_lang=en', state)
-    this.rememberGateCookiePair('www.financemasterpro.com', 'lrgarden_lang=en', state)
-    this.rememberGateCookiePair('.financemasterpro.com', 'lrgarden_lang=en', state)
+    this.rememberGateCookiePair('financemasterpro.com', `lrgarden_lang=${readerLangCode}`, state)
+    this.rememberGateCookiePair('www.financemasterpro.com', `lrgarden_lang=${readerLangCode}`, state)
+    this.rememberGateCookiePair('.financemasterpro.com', `lrgarden_lang=${readerLangCode}`, state)
     state.financeGateCookiesApplied = true
 
     if (shouldLog) console.log(`[NineManga] Finance gate cookies applied: lrgarden_visit_check_${financePostId}=${state.chapterId}`)

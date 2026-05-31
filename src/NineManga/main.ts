@@ -1,5 +1,5 @@
 import { CookieStorageInterceptor, Form, type Cookie } from '@paperback/types'
-import { getNineMangaLanguageConfig, type NineMangaLanguageConfig } from './NineMangaLanguageConfig'
+import { getNineMangaLanguageConfig } from './NineMangaLanguageConfig'
 import type {
   Chapter,
   ChapterDetails,
@@ -160,7 +160,7 @@ class NineMangaExtension
       response.status >= 300 &&
       response.status < 400 &&
       /^https?:\/\/(?:www\.)?financemasterpro\.com\/go\/jump\/?/i.test(response.url) &&
-      /[?&]type=enninemanga(?:&|$)/i.test(response.url) &&
+      /[?&]type=(?:en|es|ru)ninemanga(?:&|$)/i.test(response.url) &&
       /[?&]cid=[^&#]+/i.test(response.url)
     )
   }
