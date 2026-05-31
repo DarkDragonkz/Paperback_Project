@@ -489,51 +489,6 @@ private chapterProgressionNumber(chapter: Chapter): number {
     return uniqueStrings(pages)
   }
 
-  /**
-   * Localized NineManga reader flow based on the working Tascabile/NineManga logic.
-   *
-   * IT/DE/BR/FR chapters expose one image per reader page plus a page selector
-   * (`select.sl-page`, `select#page`, or `select[name="page"]`). Unlike the
-   * EN/ES/RU FinanceMasterPro flow, these languages should stay on the
-   * localized NineManga domain and collect every page URL from that selector.
-   */
-  private async resolveLocalizedTascabileReaderResponse(
-    response: TextResponse,
-    state: ReaderResolutionState,
-    directImages: string[]
-  ): Promise<string[]> {
-    const pageUrls = this.parser.parseReaderPageUrls(response.body, response.url)
-    console.log(`[NineManga] Localized reader page URLs parsed: ${pageUrls.length}`)
-
-    if (pageUrls.length <= 1) return directImages
-
-    const pages: string[] = [...directImages]
-
-    for (const pageUrl of uniqueStrings(pageUrls).slice(0, MAX_READER_REQUESTS)) {
-      const normalizedPageUrl = this.withReaderWarning(normalizeUrl(pageUrl, this.baseUrl()))
-      if (!normalizedPageUrl) continue
-      if (this.sourceFlowKey(normalizedPageUrl) === this.sourceFlowKey(response.url)) continue
-
-      if (!this.isNineMangaReaderUrl(normalizedPageUrl)) {
-        this.rememberGateUrl(normalizedPageUrl, state)
-        continue
-      }
-
-      const pageResponse = await this.getReaderHtml(normalizedPageUrl, response.url, state)
-      if (!pageResponse) continue
-
-      const pageClassification = this.parser.classifyReaderPage(pageResponse.body, pageResponse.url)
-      this.logReaderClassification(pageResponse.url, pageClassification)
-      if (pageClassification !== 'real-reader') continue
-
-      const pageImages = this.parser.parseReaderImageUrls(pageResponse.body, pageResponse.url)
-      console.log(`[NineManga] Localized reader page images parsed: ${pageImages.length} url=${pageResponse.url}`)
-      pages.push(...pageImages)
-    }
-
-    return uniqueStrings(pages)
-  }
-
   private async resolveReaderGateFallback(
     gateUrl: string,
     state: ReaderResolutionState
@@ -604,8 +559,8 @@ private chapterProgressionNumber(chapter: Chapter): number {
     console.log(`[NineManga] Gate fallback reader images parsed: ${directImages.length}`)
     if (directImages.length > 0) {
       if (this.config.flowType === 'localized-tascabile') {
-        const localizedPages = await this.resolveLocalizedTascabileReaderResponse(response, state, directImages)
-        if (localizedPages.length > directImages.length) {
+        const localizedPages = await this.resolveLocalizedTascabileReaderResponse(response.url, response.body)
+        if (localizedPages.length > 0) {
           this.logExtractedImages(localizedPages)
           return localizedPages
         }
@@ -663,6 +618,45 @@ private chapterProgressionNumber(chapter: Chapter): number {
     }
 
     return []
+  }
+
+  private async resolveLocalizedTascabileReaderResponse(
+    currentUrl: string,
+    currentHtml: string
+  ): Promise<string[]> {
+    const firstImages = this.parser.parseReaderImageUrls(currentHtml, currentUrl)
+    const pageUrls = this.parser.parseReaderPageUrls(currentHtml, currentUrl)
+    console.log(`[NineManga] Localized reader page URLs parsed: ${pageUrls.length}`)
+
+    if (pageUrls.length <= 1) return uniqueStrings(firstImages)
+
+    const pages: string[] = [...firstImages]
+    const seenUrls = new Set<string>([
+      this.sourceFlowKey(currentUrl),
+      this.sourceFlowKey(this.withReaderWarning(normalizeUrl(currentUrl, this.baseUrl()))),
+    ])
+
+    for (const pageUrl of uniqueStrings(pageUrls).slice(0, MAX_READER_REQUESTS)) {
+      const normalizedPageUrl = this.withReaderWarning(normalizeUrl(pageUrl, this.baseUrl()))
+      if (!normalizedPageUrl) continue
+      if (seenUrls.has(this.sourceFlowKey(normalizedPageUrl))) continue
+      if (!this.isNineMangaReaderUrl(normalizedPageUrl)) continue
+
+      seenUrls.add(this.sourceFlowKey(normalizedPageUrl))
+
+      try {
+        console.log(`[NineManga] Localized reader page request: ${normalizedPageUrl}`)
+        const pageResponse = await getText(normalizedPageUrl, await this.getReaderHeaders(currentUrl))
+        const pageImages = this.parser.parseReaderImageUrls(pageResponse.body, pageResponse.url)
+        console.log(`[NineManga] Localized reader page images parsed: ${pageImages.length} url=${pageResponse.url}`)
+
+        pages.push(...pageImages)
+      } catch (error) {
+        console.log(`[NineManga] Localized reader page request failed: ${normalizedPageUrl}`)
+      }
+    }
+
+    return uniqueStrings(pages)
   }
 
   private async getReaderHtml(
