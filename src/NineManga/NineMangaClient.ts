@@ -13,7 +13,7 @@ import {
   type SourceManga,
 } from '@paperback/types'
 
-import { defaultBrowserHeaders, mergeHeaders } from '../common/http/headers'
+import { defaultBrowserHeaders, mergeHeaders, type HeaderMap } from '../common/http/headers'
 import { CloudflareBypassInProgressError, getJson, getText, type TextResponse } from '../common/http/request'
 import type { PageMetadata } from '../common/models/Pagination'
 import { uniqueStrings } from '../common/utils/array'
@@ -28,10 +28,13 @@ import type {
 import { NineMangaParser, type NineMangaGateCandidate, type NineMangaReaderPageKind } from './NineMangaParser'
 
 const BASE_URL = 'https://www.ninemanga.com/'
+const SWEETTOOTH_BASE_URL = 'https://www.sweettoothrecipes.com/'
+const FINANCE_MASTER_PRO_BASE_URL = 'https://www.financemasterpro.com/'
 const HTML_CACHE_TTL_MS = 2 * 60 * 1000
 const MANGA_DATA_CACHE_TTL_MS = 5 * 60 * 1000
 const MAX_CACHE_ENTRIES = 30
 const MAX_READER_REQUESTS = 40
+const MAX_GATE_REDIRECTS = 5
 
 interface CacheEntry<T> {
   expiresAt: number
@@ -44,6 +47,13 @@ interface ReaderResolutionState {
   requestCount: number
   gateFallbackAttempted: boolean
   gateCandidateUrlsFound: boolean
+  chapterUrl: string
+  bookId?: string
+  chapterId?: string
+}
+
+interface GateTextResponse extends TextResponse {
+  location: string
 }
 
 const SECTIONS: NineMangaListingConfig[] = [
@@ -293,6 +303,9 @@ export class NineMangaClient {
       requestCount: 0,
       gateFallbackAttempted: false,
       gateCandidateUrlsFound: false,
+      chapterUrl,
+      bookId: chapter.additionalInfo?.bookId,
+      chapterId: this.chapterIdFromUrl(chapter.additionalInfo?.url ?? chapter.chapterId) || undefined,
     }
     const candidates = this.readerDirectCandidates(chapter, chapterUrl)
     this.rememberGateUrl(chapterUrl, state)
@@ -383,8 +396,9 @@ export class NineMangaClient {
     state: ReaderResolutionState
   ): Promise<string[]> {
     state.gateFallbackAttempted = true
+    console.log(`[NineManga] Gate fallback start: ${state.chapterId ?? 'unknown'}`)
 
-    const response = await this.getReaderHtml(gateUrl, BASE_URL, state)
+    const response = await this.getGateHtml(gateUrl, this.gateRefererForUrl(gateUrl, state), state)
     if (!response) return []
 
     console.log(`[NineManga] Gate fallback response URL: ${response.url}`)
@@ -392,9 +406,35 @@ export class NineMangaClient {
     const classification = this.parser.classifyReaderPage(response.body, response.url)
     console.log(`[NineManga] Gate fallback classification: ${classification}`)
 
+    if (this.isFinanceMasterProUrl(response.url)) {
+      const markers = this.parser.parseExternalReaderMarkers(
+        response.body,
+        response.url,
+        state.bookId,
+        state.chapterId
+      )
+      console.log(
+        `[NineManga] External reader markers: allImgs=${markers.allImgs} mangaPic=${markers.mangaPic} bookId=${markers.bookId} chapterId=${markers.chapterId} movietop=${markers.movietop}`
+      )
+
+      if (!this.hasExternalReaderMarkers(markers)) {
+        throw new Error('NineManga reader: FinanceMasterPro reached without reader markers. Gate context/referrer may be missing.')
+      }
+
+      console.log(`[NineManga] External reader detected: ${response.url}`)
+      const pages = this.parser.parseReaderImageUrls(response.body, response.url)
+      this.logExtractedImages(pages)
+      if (pages.length > 0) return pages
+
+      throw new Error('NineManga reader: no readable images found after gate fallback.')
+    }
+
     const directImages = this.parser.parseReaderImageUrls(response.body, response.url)
     console.log(`[NineManga] Gate fallback reader images parsed: ${directImages.length}`)
-    if (directImages.length > 0) return directImages
+    if (directImages.length > 0) {
+      this.logExtractedImages(directImages)
+      return directImages
+    }
 
     const redirectUrl = this.parser.parseReaderRedirectUrl(response.body, response.url)
     console.log(`[NineManga] Gate fallback redirect URL: ${redirectUrl || 'none'}`)
@@ -405,17 +445,24 @@ export class NineMangaClient {
     const gateCandidateUrls = this.parser.parseGateCandidateUrls(response.body, response.url)
     const gateCandidates = this.parser.parseGateCandidates(response.body, response.url)
     this.logGateCandidates(response.url, gateCandidates)
+    console.log(`[NineManga] Gate source links found: ${gateCandidateUrls.length}`)
 
     const nextUrls = uniqueStrings([
       redirectUrl,
       sourceUrl,
       ...gateCandidateUrls,
     ].filter(Boolean) as string[])
-    if (nextUrls.length > 0) state.gateCandidateUrlsFound = true
 
     if (nextUrls.length === 0) {
       console.log(`[NineManga] NineManga gate fallback: no candidate URLs found at ${response.url}`)
     }
+
+    const financeJumpUrl = this.financeJumpUrlForState(state)
+    if (this.isSweettoothUrl(response.url) && financeJumpUrl && !nextUrls.some((url) => this.sourceFlowKey(url) === this.sourceFlowKey(financeJumpUrl))) {
+      nextUrls.push(financeJumpUrl)
+    }
+    if (financeJumpUrl) console.log(`[NineManga] Finance jump url: ${financeJumpUrl}`)
+    if (nextUrls.length > 0) state.gateCandidateUrlsFound = true
 
     for (const nextUrl of nextUrls.filter((url) => this.isNineMangaReaderUrl(url))) {
       if (this.isNineMangaUrl(nextUrl)) {
@@ -460,6 +507,57 @@ export class NineMangaClient {
     }
 
     return response
+  }
+
+  private async getGateHtml(
+    url: string,
+    referer: string,
+    state: ReaderResolutionState,
+    redirectCount = 0
+  ): Promise<GateTextResponse | undefined> {
+    const normalizedUrl = normalizeUrl(url, BASE_URL)
+    const key = this.sourceFlowKey(normalizedUrl)
+
+    if (!normalizedUrl || state.visitedUrls.has(key)) return undefined
+
+    if (state.requestCount >= MAX_READER_REQUESTS) {
+      console.log(`[NineManga] Reader request limit reached at ${MAX_READER_REQUESTS}`)
+      return undefined
+    }
+
+    state.visitedUrls.add(key)
+    state.requestCount += 1
+
+    console.log(`[NineManga] Gate request: ${normalizedUrl} referer=${referer}`)
+    const request = {
+      url: normalizedUrl,
+      method: 'GET',
+      headers: await this.getGateHeaders(referer),
+    }
+    const [response, data] = await Application.scheduleRequest(request)
+    const body = Application.arrayBufferToUTF8String(data)
+    const location = this.headerValue(response.headers, 'location')
+
+    console.log(`[NineManga] Gate response: status=${response.status} url=${response.url}`)
+    console.log(`[NineManga] Gate redirect location: ${location || 'none'}`)
+
+    if (location && response.status >= 300 && response.status < 400 && redirectCount < MAX_GATE_REDIRECTS) {
+      const nextUrl = normalizeUrl(location, response.url || normalizedUrl)
+      const redirected = await this.getGateHtml(nextUrl, referer, state, redirectCount + 1)
+      if (redirected) {
+        console.log(`[NineManga] Gate final URL: ${redirected.url}`)
+        return redirected
+      }
+    }
+
+    console.log(`[NineManga] Gate final URL: ${response.url}`)
+
+    return {
+      url: response.url,
+      status: response.status,
+      body,
+      location,
+    }
   }
 
   private readerDirectCandidates(chapter: Chapter, chapterUrl: string): string[] {
@@ -605,6 +703,14 @@ export class NineMangaClient {
     return this.isNineMangaUrl(normalized) && normalized.includes('/chapter/')
   }
 
+  private isSweettoothUrl(url: string): boolean {
+    return /^https?:\/\/(?:www\.)?sweettoothrecipes\.com(?:[/:?#]|$)/i.test(normalizeUrl(url, BASE_URL))
+  }
+
+  private isFinanceMasterProUrl(url: string): boolean {
+    return /^https?:\/\/(?:www\.)?financemasterpro\.com(?:[/:?#]|$)/i.test(normalizeUrl(url, BASE_URL))
+  }
+
   private isKnownGateUrl(url: string): boolean {
     const normalized = normalizeUrl(url, BASE_URL).toLowerCase()
     if (this.isNineMangaUrl(normalized)) return false
@@ -623,6 +729,29 @@ export class NineMangaClient {
       normalized.includes('sweettoothrecipes.com') ||
       normalized.includes('financemasterpro.com')
     )
+  }
+
+  private gateRefererForUrl(url: string, state: ReaderResolutionState): string {
+    if (this.isFinanceMasterProUrl(url)) return SWEETTOOTH_BASE_URL
+    if (this.isSweettoothUrl(url)) return state.chapterUrl || BASE_URL
+
+    return BASE_URL
+  }
+
+  private financeJumpUrlForState(state: ReaderResolutionState): string {
+    if (!state.chapterId) return ''
+
+    return `${FINANCE_MASTER_PRO_BASE_URL}go/jump/?type=enninemanga&cid=${encodeURIComponent(state.chapterId)}`
+  }
+
+  private hasExternalReaderMarkers(markers: {
+    allImgs: boolean
+    mangaPic: boolean
+    bookId: boolean
+    chapterId: boolean
+    movietop: boolean
+  }): boolean {
+    return markers.allImgs || markers.mangaPic || markers.movietop || (markers.bookId && markers.chapterId)
   }
 
   private resolveReaderChapterUrl(chapter: Chapter): string {
@@ -685,6 +814,34 @@ export class NineMangaClient {
       cookie: 'ninemanga_list_num=1',
       referer: this.isNineMangaUrl(referer) ? referer : BASE_URL,
     })
+  }
+
+  private async getGateHeaders(referer: string): Promise<HeaderMap> {
+    return mergeHeaders(await defaultBrowserHeaders(referer), {
+      accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+      cookie: 'ninemanga_list_num=1',
+      referer,
+    })
+  }
+
+  private headerValue(headers: Record<string, string>, name: string): string {
+    const match = Object.entries(headers).find(
+      ([key]) => key.toLowerCase() === name.toLowerCase()
+    )
+
+    return match?.[1] ?? ''
+  }
+
+  private logExtractedImages(images: string[]): void {
+    console.log(`[NineManga] Reader images extracted: ${images.length}`)
+
+    for (const imageUrl of images.slice(0, 3)) {
+      console.log(`[NineManga] Reader image sample: ${this.truncateLogValue(imageUrl)}`)
+    }
+  }
+
+  private truncateLogValue(value: string): string {
+    return value.length > 180 ? `${value.slice(0, 177)}...` : value
   }
 
   private async prepareReaderChapter(chapter: Chapter): Promise<Chapter> {

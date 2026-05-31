@@ -30,6 +30,7 @@ const NON_GENRE_LABELS = new Set([
 
 export type NineMangaReaderPageKind =
   | 'real-reader'
+  | 'external-reader'
   | 'source-gate'
   | 'cloudflare'
   | 'external-ad'
@@ -39,6 +40,14 @@ export interface NineMangaGateCandidate {
   url: string
   source: 'href' | 'data-href' | 'data-url' | 'onclick' | 'script' | 'window-location'
   label?: string
+}
+
+export interface NineMangaExternalReaderMarkers {
+  allImgs: boolean
+  mangaPic: boolean
+  bookId: boolean
+  chapterId: boolean
+  movietop: boolean
 }
 
 export class NineMangaParser {
@@ -160,6 +169,8 @@ export class NineMangaParser {
     images.push(...this.parseImagesFromSelector($, 'div.pic_box img.manga_pic', currentUrl, false))
     images.push(...this.parseImagesFromSelector($, 'img.manga_pic', currentUrl, false))
     images.push(...this.parseImagesFromSelector($, 'a.pic_download img', currentUrl, true))
+    images.push(...this.parseImagesFromSelector($, 'a.pic_download[href], a[href*="movietop.cc/comics/"]', currentUrl, true))
+    images.push(...this.parseInlineReaderImageUrls(html, currentUrl))
 
     const ogImage = this.normalizeImageUrl($('meta[property="og:image"]').first().attr('content'), currentUrl)
     if (this.isReaderImageUrl(ogImage)) images.push(ogImage)
@@ -183,7 +194,11 @@ export class NineMangaParser {
     const normalizedUrl = normalizeUrl(currentUrl, this.baseUrl).toLowerCase()
     const normalizedHtml = html.toLowerCase()
 
-    if (!this.isNineMangaUrl(normalizedUrl)) return 'external-ad'
+    if (!this.isNineMangaUrl(normalizedUrl)) {
+      return this.isFinanceMasterProUrl(normalizedUrl) && this.hasExternalReaderMarkers(html, currentUrl)
+        ? 'external-reader'
+        : 'external-ad'
+    }
 
     if (
       normalizedHtml.includes('cf-browser-verification') ||
@@ -211,6 +226,45 @@ export class NineMangaParser {
     if (this.parseSourceSelectionUrl(html)) return 'source-gate'
 
     return 'dead'
+  }
+
+  parseExternalReaderMarkers(
+    html: string,
+    currentUrl: string,
+    bookId?: string,
+    chapterId?: string
+  ): NineMangaExternalReaderMarkers {
+    const decodedHtml = this.decodeHtmlEntities(html)
+    const normalizedHtml = decodedHtml.toLowerCase()
+    const normalizedUrl = normalizeUrl(currentUrl, this.baseUrl).toLowerCase()
+    const bookPattern = bookId ? new RegExp(`\\bbook_id\\s*=\\s*["']?${this.escapeRegex(bookId)}\\b`, 'i') : undefined
+    const chapterPattern = chapterId ? new RegExp(`\\bchapter_id\\s*=\\s*["']?${this.escapeRegex(chapterId)}\\b`, 'i') : undefined
+    const combinedPath = bookId && chapterId ? `/${bookId}/${chapterId}/` : ''
+
+    return {
+      allImgs: normalizedHtml.includes('all_imgs_url'),
+      mangaPic: normalizedHtml.includes('manga_pic'),
+      bookId: Boolean(
+        (bookPattern && bookPattern.test(decodedHtml)) ||
+          (bookId && normalizedHtml.includes(`/${bookId}/`))
+      ),
+      chapterId: Boolean(
+        (chapterPattern && chapterPattern.test(decodedHtml)) ||
+          (chapterId && normalizedHtml.includes(`/${chapterId}/`)) ||
+          (chapterId && normalizedUrl.includes(chapterId))
+      ),
+      movietop: normalizedHtml.includes('movietop.cc/comics/') || Boolean(combinedPath && normalizedHtml.includes(combinedPath)),
+    }
+  }
+
+  hasExternalReaderMarkers(
+    html: string,
+    currentUrl = this.baseUrl,
+    bookId?: string,
+    chapterId?: string
+  ): boolean {
+    const markers = this.parseExternalReaderMarkers(html, currentUrl, bookId, chapterId)
+    return markers.allImgs || markers.mangaPic || markers.movietop || (markers.bookId && markers.chapterId)
   }
 
   parseSourceSelectionUrl(html: string): string | undefined {
@@ -666,6 +720,10 @@ export class NineMangaParser {
       normalized.includes('advert') ||
       normalized.includes('mangadogs') ||
       normalized.includes('update') ||
+      normalized.includes('wp-content/uploads') ||
+      normalized.includes('elementor') ||
+      normalized.includes('avatar') ||
+      normalized.includes('favicon') ||
       normalized.includes('sweettoothrecipes.com') ||
       normalized.includes('financemasterpro.com')
     )
@@ -695,6 +753,14 @@ export class NineMangaParser {
 
   private isNineMangaUrl(url: string): boolean {
     return /^https?:\/\/(?:www\.)?ninemanga\.com(?:[/:?#]|$)/i.test(url)
+  }
+
+  private isFinanceMasterProUrl(url: string): boolean {
+    return /^https?:\/\/(?:www\.)?financemasterpro\.com(?:[/:?#]|$)/i.test(url)
+  }
+
+  private escapeRegex(value: string): string {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   }
 
   private decodeHtmlEntities(value: string): string {
