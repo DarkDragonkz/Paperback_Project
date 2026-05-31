@@ -1,5 +1,5 @@
 {
-  "buildTime": "2026-05-31T14:39:41.044Z",
+  "buildTime": "2026-05-31T14:46:15.001Z",
   "builtWith": {
     "toolchain": "1.0.0-alpha.86",
     "types": "1.0.0-alpha.86"
@@ -253,7 +253,7 @@
       "id": "NIFTeam"
     },
     {
-      "version": "1.0.31",
+      "version": "1.0.32",
       "name": "NineManga",
       "icon": "icon.png",
       "description": "NineManga source for a modular Paperback iOS 0.9 extension repository.",
@@ -276,7 +276,8 @@
         1,
         64,
         4,
-        16
+        16,
+        32
       ],
       "id": "NineManga"
     },
