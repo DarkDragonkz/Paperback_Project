@@ -23,6 +23,7 @@ import type {
 import { ImageRequestInterceptor } from '../common/http/imageInterceptor'
 import { resetCloudflareBypassState } from '../common/http/request'
 import { NineMangaClient } from './NineMangaClient'
+import { registerNineMangaSettings } from './NineMangaSettings'
 
 const SOURCE_VERSION = '1.1.0'
 const CLOUDFLARE_COOKIE_TTL_MS = 7 * 24 * 60 * 60 * 1000
@@ -65,6 +66,7 @@ class NineMangaExtension
   private imageInterceptor?: ImageRequestInterceptor
 
   async initialise(): Promise<void> {
+    registerNineMangaSettings()
     const activeConfig = getNineMangaLanguageConfig(readLanguageSetting())
 
     this.client = new NineMangaClient(() => getNineMangaLanguageConfig(readLanguageSetting()), (cookie) => this.cookieStorage.setCookie(cookie))
