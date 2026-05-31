@@ -1,7 +1,7 @@
 import { ContentRating, SourceIntents, type ExtensionInfo } from '@paperback/types'
 
 const sourceInfo = {
-  version: '1.0.31',
+  version: '1.0.32',
   name: 'NineManga',
   icon: 'icon.png',
   description:
@@ -26,6 +26,7 @@ const sourceInfo = {
     SourceIntents.SEARCH_RESULT_PROVIDING,
     SourceIntents.DISCOVER_SECTION_PROVIDING,
     SourceIntents.CLOUDFLARE_BYPASS_PROVIDING,
+    SourceIntents.SETTINGS_FORM_PROVIDING,
   ],
 } satisfies ExtensionInfo
 
