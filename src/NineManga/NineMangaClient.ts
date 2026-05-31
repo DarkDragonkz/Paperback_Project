@@ -52,11 +52,19 @@ interface ReaderResolutionState {
   chapterId?: string
   financePostId?: string
   financeGateCookiesApplied: boolean
+  financeReaderInfoDetected: boolean
+  financeCanonicalCookieRetries: Set<string>
   gateCookies: Record<string, string>
 }
 
 interface GateTextResponse extends TextResponse {
   location: string
+}
+
+interface FinanceReaderInfo {
+  canonicalReaderUrl: string
+  financePostId: string
+  chapterId: string
 }
 
 const SECTIONS: NineMangaListingConfig[] = [
@@ -311,6 +319,8 @@ export class NineMangaClient {
       chapterId: this.chapterIdFromUrl(chapter.additionalInfo?.url ?? chapter.chapterId) || undefined,
       financePostId: this.financePostIdForChapter(this.chapterIdFromUrl(chapter.additionalInfo?.url ?? chapter.chapterId) || undefined),
       financeGateCookiesApplied: false,
+      financeReaderInfoDetected: false,
+      financeCanonicalCookieRetries: new Set<string>(),
       gateCookies: {},
     }
     const candidates = this.readerDirectCandidates(chapter, chapterUrl)
@@ -446,6 +456,10 @@ export class NineMangaClient {
           }
         }
 
+        if (state.financeReaderInfoDetected) {
+          throw new Error('NineManga reader: FinanceMasterPro reached but reader markers are missing after applying dynamic gate cookie.')
+        }
+
         throw new Error('NineManga reader: FinanceMasterPro reached without reader markers. Gate context/referrer may be missing.')
       }
 
@@ -556,6 +570,12 @@ export class NineMangaClient {
     state.visitedUrls.add(key)
     state.requestCount += 1
 
+    const financeJumpChapterId = this.financeChapterIdFromJumpUrl(normalizedUrl)
+    if (financeJumpChapterId) {
+      if (!state.chapterId) state.chapterId = financeJumpChapterId
+      console.log(`[NineManga] Finance jump chapterId: ${financeJumpChapterId}`)
+    }
+
     console.log(`[NineManga] Gate request: ${normalizedUrl} referer=${referer}`)
     const request = {
       url: normalizedUrl,
@@ -569,6 +589,7 @@ export class NineMangaClient {
 
     console.log(`[NineManga] Gate response: status=${response.status} url=${response.url}`)
     console.log(`[NineManga] Gate redirect location: ${location || 'none'}`)
+    if (financeJumpChapterId) console.log(`[NineManga] Finance jump response url: ${response.url}`)
     if (this.isFinanceMasterProUrl(normalizedUrl) || this.isFinanceMasterProUrl(response.url)) {
       console.log(`[NineManga] Finance response headers: ${this.headersForLog(response.headers)}`)
       this.logFinanceBodyHints(body)
@@ -603,6 +624,12 @@ export class NineMangaClient {
 
     for (const candidate of candidates) {
       console.log(`[NineManga] Finance alternate reader url: ${candidate}`)
+      const candidateReaderInfo = this.financeReaderInfoFromUrl(candidate, state.chapterId ?? '')
+      if (candidateReaderInfo) {
+        console.log(`[NineManga] Finance canonical reader request: ${candidate}`)
+        this.allowOneFinanceCanonicalCookieRetry(candidate, state)
+      }
+
       const response = await this.getGateHtml(candidate, SWEETTOOTH_BASE_URL, state)
       if (!response) continue
 
@@ -633,30 +660,51 @@ export class NineMangaClient {
     const withoutQuery = normalized.split(/[?#]/)[0] ?? normalized
     const path = withoutQuery.match(/^https?:\/\/[^/?#]+([^?#]*)/i)?.[1] ?? ''
     const hostlessPath = path.replace(/\/$/, '')
+    const slugPath = hostlessPath.replace(/\/\d+\.html$/i, '')
+    const readerSlugPath = /^\/go(?:\/|$)/i.test(slugPath) ? '' : slugPath
+    const readerInfo = state.chapterId ? this.financeReaderInfoFromUrl(normalized, state.chapterId) : undefined
     const htmlPostId = this.financePostIdFromHtml(html)
-    const postId = htmlPostId || state.financePostId || this.financePostIdForChapter(state.chapterId)
+    const postId = readerInfo?.financePostId || htmlPostId || state.financePostId || this.financePostIdForChapter(state.chapterId)
     const candidates: string[] = []
+
+    if (readerInfo) {
+      state.financePostId = readerInfo.financePostId
+      state.financeReaderInfoDetected = true
+      console.log(
+        `[NineManga] Finance reader info: postId=${readerInfo.financePostId} chapterId=${readerInfo.chapterId} canonical=${readerInfo.canonicalReaderUrl}`
+      )
+      candidates.push(readerInfo.canonicalReaderUrl)
+    }
 
     if (htmlPostId && !state.financePostId) state.financePostId = htmlPostId
 
     for (const htmlUrl of this.financeHtmlUrlsFromBody(html)) {
+      const htmlReaderInfo = state.chapterId ? this.financeReaderInfoFromUrl(htmlUrl, state.chapterId) : undefined
+      if (htmlReaderInfo && !state.financePostId) {
+        state.financePostId = htmlReaderInfo.financePostId
+        state.financeReaderInfoDetected = true
+        console.log(
+          `[NineManga] Finance reader info: postId=${htmlReaderInfo.financePostId} chapterId=${htmlReaderInfo.chapterId} canonical=${htmlReaderInfo.canonicalReaderUrl}`
+        )
+      }
+
       console.log(`[NineManga] Finance canonical fallback candidate: ${htmlUrl}`)
-      candidates.push(htmlUrl)
+      candidates.push(htmlReaderInfo?.canonicalReaderUrl ?? htmlUrl)
     }
 
-    if (postId && hostlessPath) {
-      const candidate = `https://www.financemasterpro.com${hostlessPath}/${postId}.html`
+    if (postId && readerSlugPath) {
+      const candidate = `https://www.financemasterpro.com${readerSlugPath}/${postId}.html`
       console.log(`[NineManga] Finance canonical fallback candidate: ${candidate}`)
       candidates.push(candidate)
     }
 
-    if (state.financePostId && state.financePostId !== postId && hostlessPath) {
-      const candidate = `https://www.financemasterpro.com${hostlessPath}/${state.financePostId}.html`
+    if (state.financePostId && state.financePostId !== postId && readerSlugPath) {
+      const candidate = `https://www.financemasterpro.com${readerSlugPath}/${state.financePostId}.html`
       console.log(`[NineManga] Finance canonical fallback candidate: ${candidate}`)
       candidates.push(candidate)
     }
 
-    if (!/\.html$/i.test(hostlessPath) && hostlessPath) {
+    if (!/\.html$/i.test(hostlessPath) && readerSlugPath) {
       const candidate = `https://www.financemasterpro.com${hostlessPath}.html`
       console.log(`[NineManga] Finance canonical fallback candidate: ${candidate}`)
       candidates.push(candidate)
@@ -687,6 +735,44 @@ export class NineMangaClient {
     return ''
   }
 
+  private financeReaderInfoFromUrl(url: string, chapterId: string): FinanceReaderInfo | undefined {
+    if (!chapterId) return undefined
+
+    const normalized = normalizeUrl(url, FINANCE_MASTER_PRO_BASE_URL)
+    if (!this.isFinanceMasterProUrl(normalized)) return undefined
+
+    const match = normalized.match(/^https?:\/\/(?:www\.)?financemasterpro\.com\/([^/?#]+)\/(\d+)\.html(?:[?#].*)?$/i)
+    const slug = match?.[1]
+    const financePostId = match?.[2] ?? ''
+    if (!slug || Number(financePostId) < 1000) return undefined
+
+    return {
+      canonicalReaderUrl: `https://www.financemasterpro.com/${slug}/${financePostId}.html`,
+      financePostId,
+      chapterId,
+    }
+  }
+
+  private financeChapterIdFromJumpUrl(url: string): string {
+    const normalized = normalizeUrl(url, FINANCE_MASTER_PRO_BASE_URL)
+    if (!this.isFinanceMasterProUrl(normalized) || !normalized.includes('/go/jump/')) return ''
+
+    const rawChapterId = normalized.match(/[?&]cid=([^&#]+)/i)?.[1] ?? ''
+    try {
+      return decodeURIComponent(rawChapterId)
+    } catch {
+      return rawChapterId
+    }
+  }
+
+  private allowOneFinanceCanonicalCookieRetry(url: string, state: ReaderResolutionState): void {
+    const key = this.sourceFlowKey(normalizeUrl(url, FINANCE_MASTER_PRO_BASE_URL))
+    if (!key || !state.visitedUrls.has(key) || state.financeCanonicalCookieRetries.has(key)) return
+
+    state.financeCanonicalCookieRetries.add(key)
+    state.visitedUrls.delete(key)
+  }
+
   private financeHtmlUrlsFromBody(html: string): string[] {
     const urls: string[] = []
 
@@ -694,7 +780,7 @@ export class NineMangaClient {
       urls.push(match[0])
     }
 
-    for (const match of html.matchAll(/\/[^"'<>\\\s)]*?(?:46013|the-cost-of-comparison)[^"'<>\\\s)]*?\.html(?:\?[^"'<>\\\s)]*)?/gi)) {
+    for (const match of html.matchAll(/\/[A-Za-z0-9][^"'<>\\\s)]*?\/\d{4,}\.html(?:\?[^"'<>\\\s)]*)?/gi)) {
       urls.push(normalizeUrl(match[0], FINANCE_MASTER_PRO_BASE_URL))
     }
 
