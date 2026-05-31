@@ -35,6 +35,12 @@ export type NineMangaReaderPageKind =
   | 'external-ad'
   | 'dead'
 
+export interface NineMangaGateCandidate {
+  url: string
+  source: 'href' | 'data-href' | 'data-url' | 'onclick' | 'script' | 'window-location'
+  label?: string
+}
+
 export class NineMangaParser {
   constructor(private readonly baseUrl: string) {}
 
@@ -230,6 +236,50 @@ export class NineMangaParser {
       normalizedUrl.includes('type=enninemanga')
 
     return allowed ? normalizedUrl : undefined
+  }
+
+  parseGateCandidateUrls(html: string, currentUrl: string): string[] {
+    return this.parseGateCandidates(html, currentUrl).map((candidate) => candidate.url)
+  }
+
+  parseGateCandidates(html: string, currentUrl: string): NineMangaGateCandidate[] {
+    const $ = cheerio.load(html)
+    const candidates: NineMangaGateCandidate[] = []
+
+    $('a').each((_, element) => {
+      const anchor = $(element)
+      const label = cleanText(anchor.text()) || cleanText(anchor.attr('title')) || undefined
+
+      this.addGateCandidate(candidates, anchor.attr('href'), currentUrl, 'href', label)
+      this.addGateCandidate(candidates, anchor.attr('data-href'), currentUrl, 'data-href', label)
+      this.addGateCandidate(candidates, anchor.attr('data-url'), currentUrl, 'data-url', label)
+      this.addGateCandidate(candidates, anchor.attr('onclick'), currentUrl, 'onclick', label)
+    })
+
+    $('[data-href], [data-url], [onclick]').each((_, element) => {
+      const item = $(element)
+      const label = cleanText(item.text()) || cleanText(item.attr('title')) || undefined
+
+      this.addGateCandidate(candidates, item.attr('data-href'), currentUrl, 'data-href', label)
+      this.addGateCandidate(candidates, item.attr('data-url'), currentUrl, 'data-url', label)
+      this.addGateCandidate(candidates, item.attr('onclick'), currentUrl, 'onclick', label)
+    })
+
+    $('script').each((_, element) => {
+      const script = $(element).html() ?? ''
+      for (const match of script.matchAll(/window\.location(?:\.href)?\s*=\s*["']([^"']+)["']/gi)) {
+        this.addGateCandidate(candidates, match[1], currentUrl, 'window-location')
+      }
+
+      for (const match of script.matchAll(/["']((?:https?:)?\/\/[^"']+|\/[^"']+)["']/gi)) {
+        this.addGateCandidate(candidates, match[1], currentUrl, 'script')
+      }
+    })
+
+    return uniqueBy(
+      candidates.filter((candidate) => this.isUsefulGateCandidateUrl(candidate.url)),
+      (candidate) => candidate.url
+    )
   }
 
   parseReaderRedirectUrl(html: string, currentUrl: string): string | undefined {
@@ -455,6 +505,93 @@ export class NineMangaParser {
     })
 
     return uniqueStrings(images)
+  }
+
+  private addGateCandidate(
+    candidates: NineMangaGateCandidate[],
+    rawValue: string | undefined,
+    currentUrl: string,
+    source: NineMangaGateCandidate['source'],
+    label?: string
+  ): void {
+    if (!rawValue) return
+
+    const decodedValue = this.decodeHtmlEntities(rawValue)
+    const values = this.extractUrlLikeValues(decodedValue)
+
+    for (const value of values) {
+      const normalizedUrl = normalizeUrl(value, currentUrl || this.baseUrl)
+      if (normalizedUrl) candidates.push({ url: normalizedUrl, source, label })
+    }
+  }
+
+  private extractUrlLikeValues(value: string): string[] {
+    const values: string[] = []
+
+    for (const match of value.matchAll(/(?:https?:)?\/\/[^\s"',<>\\)]+|\/[A-Za-z0-9][^\s"',<>\\)]*/gi)) {
+      values.push(match[0])
+    }
+
+    if (values.length > 0) return uniqueStrings(values)
+
+    const trimmed = value.trim()
+    if (
+      trimmed.startsWith('/') ||
+      /^https?:\/\//i.test(trimmed) ||
+      trimmed.includes('/go/') ||
+      trimmed.includes('/chapter/') ||
+      trimmed.includes('cid=') ||
+      trimmed.includes('enninemanga')
+    ) {
+      values.push(trimmed)
+    }
+
+    return uniqueStrings(values)
+  }
+
+  private isUsefulGateCandidateUrl(url: string): boolean {
+    if (!url || this.isBlockedGateCandidateUrl(url)) return false
+
+    const normalized = url.toLowerCase()
+    const isNineMangaChapter =
+      /^https?:\/\/(?:www\.)?ninemanga\.com\//i.test(url) &&
+      normalized.includes('/chapter/')
+    const isKnownGate =
+      normalized.includes('/go/ennm/') ||
+      normalized.includes('/go/jump/') ||
+      normalized.includes('type=enninemanga') ||
+      normalized.includes('cid=')
+    const looksReaderLike =
+      normalized.includes('source') ||
+      normalized.includes('read') ||
+      normalized.includes('reader') ||
+      normalized.includes('manga') ||
+      normalized.includes('chapter') ||
+      normalized.includes('ninemanga')
+
+    return isNineMangaChapter || isKnownGate || looksReaderLike
+  }
+
+  private isBlockedGateCandidateUrl(url: string): boolean {
+    const normalized = url.toLowerCase()
+
+    return (
+      /\.(?:css|js|json|png|jpe?g|webp|gif|svg|ico|woff2?|ttf)(?:[?#].*)?$/i.test(normalized) ||
+      normalized.includes('facebook.com') ||
+      normalized.includes('twitter.com') ||
+      normalized.includes('x.com/') ||
+      normalized.includes('instagram.com') ||
+      normalized.includes('youtube.com') ||
+      normalized.includes('discord.gg') ||
+      normalized.includes('google-analytics') ||
+      normalized.includes('googletagmanager') ||
+      normalized.includes('doubleclick.net') ||
+      normalized.includes('/ads') ||
+      normalized.includes('/ad/') ||
+      normalized.includes('advert') ||
+      normalized.includes('utm_') ||
+      normalized === this.baseUrl.toLowerCase()
+    )
   }
 
   private imageUrlsFromAttributes(

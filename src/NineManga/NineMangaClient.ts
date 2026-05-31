@@ -25,7 +25,7 @@ import type {
   NineMangaMangaData,
   NineMangaSectionId,
 } from './NineMangaModels'
-import { NineMangaParser, type NineMangaReaderPageKind } from './NineMangaParser'
+import { NineMangaParser, type NineMangaGateCandidate, type NineMangaReaderPageKind } from './NineMangaParser'
 
 const BASE_URL = 'https://www.ninemanga.com/'
 const HTML_CACHE_TTL_MS = 2 * 60 * 1000
@@ -42,6 +42,8 @@ interface ReaderResolutionState {
   visitedUrls: Set<string>
   gateUrls: string[]
   requestCount: number
+  gateFallbackAttempted: boolean
+  gateCandidateUrlsFound: boolean
 }
 
 const SECTIONS: NineMangaListingConfig[] = [
@@ -289,6 +291,8 @@ export class NineMangaClient {
       visitedUrls: new Set<string>(),
       gateUrls: [],
       requestCount: 0,
+      gateFallbackAttempted: false,
+      gateCandidateUrlsFound: false,
     }
     const candidates = this.readerDirectCandidates(chapter, chapterUrl)
     this.rememberGateUrl(chapterUrl, state)
@@ -303,6 +307,10 @@ export class NineMangaClient {
     for (const gateUrl of uniqueStrings(state.gateUrls)) {
       const pages = await this.resolveReaderGateFallback(gateUrl, state)
       if (pages.length > 0) return pages
+    }
+
+    if (state.gateFallbackAttempted && !state.gateCandidateUrlsFound) {
+      throw new Error('NineManga reader: external gate did not expose readable source links. WebView interaction may be required.')
     }
 
     return []
@@ -374,23 +382,49 @@ export class NineMangaClient {
     gateUrl: string,
     state: ReaderResolutionState
   ): Promise<string[]> {
+    state.gateFallbackAttempted = true
+
     const response = await this.getReaderHtml(gateUrl, BASE_URL, state)
     if (!response) return []
 
+    console.log(`[NineManga] Gate fallback response URL: ${response.url}`)
+
+    const classification = this.parser.classifyReaderPage(response.body, response.url)
+    console.log(`[NineManga] Gate fallback classification: ${classification}`)
+
     const directImages = this.parser.parseReaderImageUrls(response.body, response.url)
+    console.log(`[NineManga] Gate fallback reader images parsed: ${directImages.length}`)
     if (directImages.length > 0) return directImages
 
     const redirectUrl = this.parser.parseReaderRedirectUrl(response.body, response.url)
-    const sourceUrl = this.parser.parseSourceSelectionUrl(response.body)
-    const nextUrls = uniqueStrings([redirectUrl, sourceUrl].filter(Boolean) as string[])
+    console.log(`[NineManga] Gate fallback redirect URL: ${redirectUrl || 'none'}`)
 
-    for (const nextUrl of nextUrls) {
+    const sourceUrl = this.parser.parseSourceSelectionUrl(response.body)
+    console.log(`[NineManga] Gate fallback source URL: ${sourceUrl || 'none'}`)
+
+    const gateCandidateUrls = this.parser.parseGateCandidateUrls(response.body, response.url)
+    const gateCandidates = this.parser.parseGateCandidates(response.body, response.url)
+    this.logGateCandidates(response.url, gateCandidates)
+
+    const nextUrls = uniqueStrings([
+      redirectUrl,
+      sourceUrl,
+      ...gateCandidateUrls,
+    ].filter(Boolean) as string[])
+    if (nextUrls.length > 0) state.gateCandidateUrlsFound = true
+
+    if (nextUrls.length === 0) {
+      console.log(`[NineManga] NineManga gate fallback: no candidate URLs found at ${response.url}`)
+    }
+
+    for (const nextUrl of nextUrls.filter((url) => this.isNineMangaReaderUrl(url))) {
       if (this.isNineMangaUrl(nextUrl)) {
         const pages = await this.resolveNineMangaReaderCandidate(this.withReaderWarning(nextUrl), state)
         if (pages.length > 0) return pages
-        continue
       }
+    }
 
+    for (const nextUrl of nextUrls.filter((url) => !this.isNineMangaReaderUrl(url))) {
       if (this.isKnownGateUrl(nextUrl)) {
         const pages = await this.resolveReaderGateFallback(nextUrl, state)
         if (pages.length > 0) return pages
@@ -470,6 +504,20 @@ export class NineMangaClient {
     if (classification === 'real-reader') return
 
     console.log(`[NineManga] Reader classified ${classification}: ${url}`)
+  }
+
+  private logGateCandidates(url: string, candidates: NineMangaGateCandidate[]): void {
+    if (candidates.length === 0) {
+      console.log(`[NineManga] Gate candidate URLs found at ${url}: 0`)
+      return
+    }
+
+    console.log(`[NineManga] Gate candidate URLs found at ${url}: ${candidates.length}`)
+
+    for (const candidate of candidates) {
+      const label = candidate.label ? ` label="${candidate.label}"` : ''
+      console.log(`[NineManga] Gate candidate ${candidate.source}${label}: ${candidate.url}`)
+    }
   }
 
   private sectionType(sectionId: string): DiscoverSectionType {
@@ -552,6 +600,11 @@ export class NineMangaClient {
     return /^https?:\/\/(?:www\.)?ninemanga\.com(?:[/:?#]|$)/i.test(normalizeUrl(url, BASE_URL))
   }
 
+  private isNineMangaReaderUrl(url: string): boolean {
+    const normalized = normalizeUrl(url, BASE_URL).toLowerCase()
+    return this.isNineMangaUrl(normalized) && normalized.includes('/chapter/')
+  }
+
   private isKnownGateUrl(url: string): boolean {
     const normalized = normalizeUrl(url, BASE_URL).toLowerCase()
     if (this.isNineMangaUrl(normalized)) return false
@@ -560,6 +613,13 @@ export class NineMangaClient {
       normalized.includes('/go/ennm/') ||
       normalized.includes('/go/jump/') ||
       normalized.includes('type=enninemanga') ||
+      normalized.includes('cid=') ||
+      normalized.includes('source') ||
+      normalized.includes('read') ||
+      normalized.includes('reader') ||
+      normalized.includes('chapter') ||
+      normalized.includes('manga') ||
+      normalized.includes('ninemanga') ||
       normalized.includes('sweettoothrecipes.com') ||
       normalized.includes('financemasterpro.com')
     )
