@@ -29,7 +29,7 @@ import {
   readNineMangaLanguageSetting,
 } from './NineMangaSettings'
 
-const SOURCE_VERSION = '1.1.0'
+const SOURCE_VERSION = '1.0.32'
 const CLOUDFLARE_COOKIE_TTL_MS = 7 * 24 * 60 * 60 * 1000
 const MOBILE_USER_AGENT =
   'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1'
@@ -56,10 +56,7 @@ class NineMangaExtension
   async initialise(): Promise<void> {
     const activeConfig = getNineMangaLanguageConfig(readNineMangaLanguageSetting())
 
-    this.client = new NineMangaClient(
-      () => getNineMangaLanguageConfig(readNineMangaLanguageSetting()),
-      (cookie) => this.cookieStorage.setCookie(cookie)
-    )
+    this.client = this.createClient()
 
     const imageHeaders = {
       ...DEFAULT_IMAGE_HEADERS,
@@ -70,17 +67,37 @@ class NineMangaExtension
       { pattern: /^https?:\/\/[^/?#]*niadd\.com\//i, headers: imageHeaders },
       { pattern: /^https?:\/\/[^/?#]*movietop\.cc\//i, headers: imageHeaders },
       { pattern: /^https?:\/\/[^/?#]*nineanime\.com\/files\//i, headers: imageHeaders },
-      { pattern: /^https?:\/\/[^/?#]*(?:blogspot\.com|blogger\.googleusercontent\.com|googleusercontent\.com)\//i, headers: imageHeaders },
+      {
+        pattern:
+          /^https?:\/\/[^/?#]*(?:blogspot\.com|blogger\.googleusercontent\.com|googleusercontent\.com)\//i,
+        headers: imageHeaders,
+      },
     ])
 
     this.imageInterceptor.registerInterceptor()
     Application.setRedirectHandler(Application.Selector(this, 'handleRedirect' as never))
+
     console.log(`[NineManga] Initialising source ${SOURCE_VERSION} (lang=${activeConfig.id})`)
 
     if (!this.cookieStorageRegistered) {
       this.cookieStorage.registerInterceptor()
       this.cookieStorageRegistered = true
     }
+  }
+
+  private createClient(): NineMangaClient {
+    return new NineMangaClient(
+      () => getNineMangaLanguageConfig(readNineMangaLanguageSetting()),
+      (cookie) => this.cookieStorage.setCookie(cookie)
+    )
+  }
+
+  private getClient(): NineMangaClient {
+    if (!this.client) {
+      this.client = this.createClient()
+    }
+
+    return this.client
   }
 
   async getSettingsForm(): Promise<Form> {
@@ -127,9 +144,12 @@ class NineMangaExtension
     }
   }
 
-  async handleRedirect(proposedRequest: Request, redirectedResponse: Response): Promise<Request | undefined> {
-    if (this.isFinanceJumpRedirect(redirectedResponse) && this.client) {
-      this.client.rememberFinanceJumpRedirect(redirectedResponse)
+  async handleRedirect(
+    proposedRequest: Request,
+    redirectedResponse: Response
+  ): Promise<Request | undefined> {
+    if (this.isFinanceJumpRedirect(redirectedResponse)) {
+      this.getClient().rememberFinanceJumpRedirect(redirectedResponse)
     }
 
     return proposedRequest
@@ -146,15 +166,15 @@ class NineMangaExtension
   }
 
   async getMangaDetails(mangaId: string): Promise<SourceManga> {
-    return this.client.getMangaDetails(mangaId)
+    return this.getClient().getMangaDetails(mangaId)
   }
 
   async getChapters(sourceManga: SourceManga): Promise<Chapter[]> {
-    return this.client.getChapters(sourceManga)
+    return this.getClient().getChapters(sourceManga)
   }
 
   async getChapterDetails(chapter: Chapter): Promise<ChapterDetails> {
-    return this.client.getChapterDetails(chapter)
+    return this.getClient().getChapterDetails(chapter)
   }
 
   async getSearchResults(
@@ -164,18 +184,19 @@ class NineMangaExtension
   ): Promise<PagedResults<SearchResultItem>> {
     void metadata
     void sortingOption
-    return this.client.getSearchResults(query.title)
+
+    return this.getClient().getSearchResults(query.title)
   }
 
   async getDiscoverSections(): Promise<DiscoverSection[]> {
-    return this.client.getDiscoverSections()
+    return this.getClient().getDiscoverSections()
   }
 
   async getDiscoverSectionItems(
     section: DiscoverSection,
     metadata: Metadata | undefined
   ): Promise<PagedResults<DiscoverSectionItem>> {
-    return this.client.getDiscoverSectionItems(section, metadata)
+    return this.getClient().getDiscoverSectionItems(section, metadata)
   }
 
   private isCloudflareCookie(cookie: Cookie): boolean {
@@ -211,6 +232,7 @@ class NineMangaExtension
 
   private isNineMangaCookieDomain(domain: string): boolean {
     const cd = getNineMangaLanguageConfig(readNineMangaLanguageSetting()).cookieDomain
+
     return domain.replace(/^\./, '').toLowerCase().endsWith(cd)
   }
 }
