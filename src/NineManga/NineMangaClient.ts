@@ -969,6 +969,7 @@ export class NineMangaClient {
     const cookie = this.gateCookieHeader(url, state)
     const cookieHeader = cookie ? `ninemanga_list_num=1; ${cookie}` : 'ninemanga_list_num=1'
     if (this.isFinanceMasterProUrl(url)) {
+      console.log(`[NineManga] Finance cookie header: ${this.truncateLogValue(cookieHeader)}`)
       console.log(`[NineManga] Gate request cookie header for FinanceMasterPro: ${this.truncateLogValue(cookieHeader)}`)
     }
 
