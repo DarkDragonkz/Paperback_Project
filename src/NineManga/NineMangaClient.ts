@@ -59,6 +59,7 @@ interface ReaderResolutionState {
 
 interface GateTextResponse extends TextResponse {
   location: string
+  headers: Record<string, string>
 }
 
 interface FinanceReaderInfo {
@@ -434,7 +435,7 @@ export class NineMangaClient {
       )
 
       if (!this.hasExternalReaderMarkers(markers)) {
-        const alternateResponse = await this.resolveFinanceMasterProAlternateReader(response.url, response.body, state)
+        const alternateResponse = await this.resolveFinanceMasterProAlternateReader(response.url, response.body, response.headers, state)
         if (alternateResponse) {
           const alternateMarkers = this.parser.parseExternalReaderMarkers(
             alternateResponse.body,
@@ -611,15 +612,17 @@ export class NineMangaClient {
       status: response.status,
       body,
       location,
+      headers: response.headers,
     }
   }
 
   private async resolveFinanceMasterProAlternateReader(
     url: string,
     html: string,
+    headers: Record<string, string>,
     state: ReaderResolutionState
   ): Promise<GateTextResponse | undefined> {
-    const candidates = this.financeMasterProAlternateUrls(url, html, state)
+    const candidates = this.financeMasterProAlternateUrls(url, html, headers, state)
     if (candidates.length === 0) return undefined
 
     for (const candidate of candidates) {
@@ -652,6 +655,7 @@ export class NineMangaClient {
   private financeMasterProAlternateUrls(
     url: string,
     html: string,
+    headers: Record<string, string>,
     state: ReaderResolutionState
   ): string[] {
     const normalized = normalizeUrl(url, FINANCE_MASTER_PRO_BASE_URL)
@@ -663,9 +667,13 @@ export class NineMangaClient {
     const slugPath = hostlessPath.replace(/\/\d+\.html$/i, '')
     const readerSlugPath = /^\/go(?:\/|$)/i.test(slugPath) ? '' : slugPath
     const readerInfo = state.chapterId ? this.financeReaderInfoFromUrl(normalized, state.chapterId) : undefined
+    const headerPostId = this.financePostIdFromHeaders(headers)
     const htmlPostId = this.financePostIdFromHtml(html)
-    const postId = readerInfo?.financePostId || htmlPostId || state.financePostId || this.financePostIdForChapter(state.chapterId)
+    const postId = readerInfo?.financePostId || headerPostId || htmlPostId || state.financePostId || this.financePostIdForChapter(state.chapterId)
     const candidates: string[] = []
+
+    if (headerPostId) console.log(`[NineManga] Finance post id from headers: ${headerPostId}`)
+    if (htmlPostId) console.log(`[NineManga] Finance post id from body: ${htmlPostId}`)
 
     if (readerInfo) {
       state.financePostId = readerInfo.financePostId
@@ -676,7 +684,19 @@ export class NineMangaClient {
       candidates.push(readerInfo.canonicalReaderUrl)
     }
 
-    if (htmlPostId && !state.financePostId) state.financePostId = htmlPostId
+    if (postId && !state.financePostId) state.financePostId = postId
+
+    if (!readerInfo && postId && readerSlugPath) {
+      const wpReaderInfo = this.financeReaderInfoFromSlugAndPostId(readerSlugPath, postId, state.chapterId ?? '')
+      if (wpReaderInfo) {
+        state.financePostId = wpReaderInfo.financePostId
+        state.financeReaderInfoDetected = true
+        console.log(
+          `[NineManga] Finance reader info from wp-json: postId=${wpReaderInfo.financePostId} chapterId=${wpReaderInfo.chapterId} canonical=${wpReaderInfo.canonicalReaderUrl}`
+        )
+        candidates.push(wpReaderInfo.canonicalReaderUrl)
+      }
+    }
 
     for (const htmlUrl of this.financeHtmlUrlsFromBody(html)) {
       const htmlReaderInfo = state.chapterId ? this.financeReaderInfoFromUrl(htmlUrl, state.chapterId) : undefined
@@ -721,12 +741,20 @@ export class NineMangaClient {
 
   private financePostIdFromHtml(html: string): string {
     const candidate = (
+      html.match(/\/wp-json\/wp\/v2\/posts\/(\d{4,})(?:[/?#"'<>\\\s)]|$)/i)?.[1] ||
+      html.match(/\bpostid-(\d{4,})\b/i)?.[1] ||
       html.match(/\bpost-(\d{2,})\b/i)?.[1] ||
       html.match(/\bpost[_-]?id["']?\s*[:=]\s*["']?(\d{2,})/i)?.[1] ||
       html.match(/[?&]p=(\d{2,})\b/i)?.[1] ||
       ''
     )
 
+    return Number(candidate) >= 1000 ? candidate : ''
+  }
+
+  private financePostIdFromHeaders(headers: Record<string, string>): string {
+    const link = this.headerValue(headers, 'link')
+    const candidate = link.match(/\/wp-json\/wp\/v2\/posts\/(\d{4,})(?:[/?#>;"]|$)/i)?.[1] ?? ''
     return Number(candidate) >= 1000 ? candidate : ''
   }
 
@@ -745,6 +773,23 @@ export class NineMangaClient {
     const slug = match?.[1]
     const financePostId = match?.[2] ?? ''
     if (!slug || Number(financePostId) < 1000) return undefined
+
+    return {
+      canonicalReaderUrl: `https://www.financemasterpro.com/${slug}/${financePostId}.html`,
+      financePostId,
+      chapterId,
+    }
+  }
+
+  private financeReaderInfoFromSlugAndPostId(
+    slugPath: string,
+    financePostId: string,
+    chapterId: string
+  ): FinanceReaderInfo | undefined {
+    if (!chapterId || Number(financePostId) < 1000) return undefined
+
+    const slug = slugPath.replace(/^\/+|\/+$/g, '')
+    if (!slug || slug.includes('/') || /^go(?:\/|$)/i.test(slug)) return undefined
 
     return {
       canonicalReaderUrl: `https://www.financemasterpro.com/${slug}/${financePostId}.html`,
