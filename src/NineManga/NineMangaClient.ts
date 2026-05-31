@@ -50,6 +50,8 @@ interface ReaderResolutionState {
   chapterUrl: string
   bookId?: string
   chapterId?: string
+  financePostId?: string
+  financeGateCookiesApplied: boolean
   gateCookies: Record<string, string>
 }
 
@@ -307,6 +309,8 @@ export class NineMangaClient {
       chapterUrl,
       bookId: chapter.additionalInfo?.bookId,
       chapterId: this.chapterIdFromUrl(chapter.additionalInfo?.url ?? chapter.chapterId) || undefined,
+      financePostId: this.financePostIdForChapter(this.chapterIdFromUrl(chapter.additionalInfo?.url ?? chapter.chapterId) || undefined),
+      financeGateCookiesApplied: false,
       gateCookies: {},
     }
     const candidates = this.readerDirectCandidates(chapter, chapterUrl)
@@ -629,8 +633,11 @@ export class NineMangaClient {
     const withoutQuery = normalized.split(/[?#]/)[0] ?? normalized
     const path = withoutQuery.match(/^https?:\/\/[^/?#]+([^?#]*)/i)?.[1] ?? ''
     const hostlessPath = path.replace(/\/$/, '')
-    const postId = this.financePostIdFromHtml(html)
+    const htmlPostId = this.financePostIdFromHtml(html)
+    const postId = htmlPostId || state.financePostId || this.financePostIdForChapter(state.chapterId)
     const candidates: string[] = []
+
+    if (htmlPostId && !state.financePostId) state.financePostId = htmlPostId
 
     for (const htmlUrl of this.financeHtmlUrlsFromBody(html)) {
       console.log(`[NineManga] Finance canonical fallback candidate: ${htmlUrl}`)
@@ -643,8 +650,8 @@ export class NineMangaClient {
       candidates.push(candidate)
     }
 
-    if (state.chapterId === '779034' && hostlessPath) {
-      const candidate = `https://www.financemasterpro.com${hostlessPath}/46013.html`
+    if (state.financePostId && state.financePostId !== postId && hostlessPath) {
+      const candidate = `https://www.financemasterpro.com${hostlessPath}/${state.financePostId}.html`
       console.log(`[NineManga] Finance canonical fallback candidate: ${candidate}`)
       candidates.push(candidate)
     }
@@ -665,12 +672,19 @@ export class NineMangaClient {
   }
 
   private financePostIdFromHtml(html: string): string {
-    return (
+    const candidate = (
       html.match(/\bpost-(\d{2,})\b/i)?.[1] ||
       html.match(/\bpost[_-]?id["']?\s*[:=]\s*["']?(\d{2,})/i)?.[1] ||
       html.match(/[?&]p=(\d{2,})\b/i)?.[1] ||
       ''
     )
+
+    return Number(candidate) >= 1000 ? candidate : ''
+  }
+
+  private financePostIdForChapter(chapterId: string | undefined): string {
+    if (chapterId === '779034') return '46013'
+    return ''
   }
 
   private financeHtmlUrlsFromBody(html: string): string[] {
@@ -948,11 +962,19 @@ export class NineMangaClient {
     url: string,
     state: ReaderResolutionState
   ): Promise<HeaderMap> {
+    if (this.isFinanceMasterProUrl(url)) {
+      this.applyFinanceGateCookies(state)
+    }
+
     const cookie = this.gateCookieHeader(url, state)
+    const cookieHeader = cookie ? `ninemanga_list_num=1; ${cookie}` : 'ninemanga_list_num=1'
+    if (this.isFinanceMasterProUrl(url)) {
+      console.log(`[NineManga] Gate request cookie header for FinanceMasterPro: ${this.truncateLogValue(cookieHeader)}`)
+    }
 
     return mergeHeaders(await defaultBrowserHeaders(referer), {
       accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-      cookie: cookie ? `ninemanga_list_num=1; ${cookie}` : 'ninemanga_list_num=1',
+      cookie: cookieHeader,
       referer,
     })
   }
@@ -1010,6 +1032,34 @@ export class NineMangaClient {
     }
 
     if (stored > 0) console.log(`[NineManga] Gate cookies stored for ${host}: ${stored}`)
+  }
+
+  private applyFinanceGateCookies(state: ReaderResolutionState): void {
+    const financePostId = state.financePostId || this.financePostIdForChapter(state.chapterId)
+    if (!financePostId || !state.chapterId) return
+
+    const shouldLog = !state.financeGateCookiesApplied
+
+    this.rememberGateCookiePair('financemasterpro.com', `lrgarden_visit_check_${financePostId}=${state.chapterId}`, state)
+    this.rememberGateCookiePair('www.financemasterpro.com', `lrgarden_visit_check_${financePostId}=${state.chapterId}`, state)
+    this.rememberGateCookiePair('.financemasterpro.com', `lrgarden_visit_check_${financePostId}=${state.chapterId}`, state)
+    this.rememberGateCookiePair('financemasterpro.com', 'lrgarden_webp_valid=true', state)
+    this.rememberGateCookiePair('www.financemasterpro.com', 'lrgarden_webp_valid=true', state)
+    this.rememberGateCookiePair('.financemasterpro.com', 'lrgarden_webp_valid=true', state)
+    this.rememberGateCookiePair('financemasterpro.com', 'lrgarden_lang=en', state)
+    this.rememberGateCookiePair('www.financemasterpro.com', 'lrgarden_lang=en', state)
+    this.rememberGateCookiePair('.financemasterpro.com', 'lrgarden_lang=en', state)
+    state.financeGateCookiesApplied = true
+
+    if (shouldLog) console.log(`[NineManga] Finance gate cookies applied: lrgarden_visit_check_${financePostId}=${state.chapterId}`)
+  }
+
+  private rememberGateCookiePair(host: string, pair: string, state: ReaderResolutionState): void {
+    const normalizedHost = host.toLowerCase().replace(/^\./, '').replace(/^www\./, '')
+    const name = pair.split('=')[0]
+    if (!normalizedHost || !name) return
+
+    state.gateCookies[`${normalizedHost}:${name}`] = pair
   }
 
   private gateCookieHeader(url: string, state: ReaderResolutionState): string {
