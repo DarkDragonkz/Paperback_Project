@@ -9,6 +9,7 @@ import {
   type DiscoverSectionItem,
   type Metadata,
   type PagedResults,
+  type Response,
   type SearchResultItem,
   type SourceManga,
 } from '@paperback/types'
@@ -73,6 +74,7 @@ interface FinanceRedirectInfo {
   readerPageId: string
   readerUrl: string
   location: string
+  status: number
 }
 
 const SECTIONS: NineMangaListingConfig[] = [
@@ -119,6 +121,7 @@ export class NineMangaClient {
   private readonly htmlRequests = new Map<string, Promise<TextResponse>>()
   private readonly mangaDataCache = new Map<string, CacheEntry<NineMangaMangaData>>()
   private readonly financeReaderPageIdByChapterId = new Map<string, string>()
+  private readonly financeJumpRedirects = new Map<string, FinanceRedirectInfo>()
 
   constructor(private readonly setCookie?: (cookie: Cookie) => void) {}
 
@@ -602,14 +605,16 @@ export class NineMangaClient {
     }
     const [response, data] = await Application.scheduleRequest(request)
     const body = Application.arrayBufferToUTF8String(data)
-    const location = this.headerValue(response.headers, 'location')
+    const capturedFinanceRedirect = financeJumpChapterId ? this.financeJumpRedirects.get(key) : undefined
+    const location = capturedFinanceRedirect?.location || this.headerValue(response.headers, 'location')
+    const redirectStatus = capturedFinanceRedirect?.status ?? response.status
     this.rememberGateCookies(response.headers, normalizedUrl, state)
 
     console.log(`[NineManga] Gate response: status=${response.status} url=${response.url}`)
     console.log(`[NineManga] Gate redirect location: ${location || 'none'}`)
     if (financeJumpChapterId) {
       console.log(`[NineManga] Finance jump response url: ${response.url}`)
-      console.log(`[NineManga] Finance jump redirect status: ${response.status}`)
+      console.log(`[NineManga] Finance jump redirect status: ${redirectStatus}`)
       console.log(`[NineManga] Finance jump redirect location: ${location || 'none'}`)
     }
     if (this.isFinanceMasterProUrl(normalizedUrl) || this.isFinanceMasterProUrl(response.url)) {
@@ -617,10 +622,10 @@ export class NineMangaClient {
       this.logFinanceBodyHints(body)
     }
 
-    if (location && response.status >= 300 && response.status < 400 && redirectCount < MAX_GATE_REDIRECTS) {
-      const financeRedirectInfo = financeJumpChapterId
-        ? this.financeRedirectInfoFromLocation(location, financeJumpChapterId, response.url || normalizedUrl)
-        : undefined
+    if (location && redirectStatus >= 300 && redirectStatus < 400 && redirectCount < MAX_GATE_REDIRECTS) {
+      const financeRedirectInfo = capturedFinanceRedirect || (financeJumpChapterId
+        ? this.financeRedirectInfoFromLocation(location, financeJumpChapterId, response.url || normalizedUrl, redirectStatus)
+        : undefined)
       if (financeRedirectInfo) {
         state.financePostId = financeRedirectInfo.readerPageId
         state.financeReaderInfoDetected = true
@@ -817,6 +822,17 @@ export class NineMangaClient {
     return ''
   }
 
+  rememberFinanceJumpRedirect(response: Response): void {
+    const chapterId = this.financeChapterIdFromJumpUrl(response.url)
+    const location = this.headerValue(response.headers, 'location')
+    if (!chapterId || !location) return
+
+    const redirectInfo = this.financeRedirectInfoFromLocation(location, chapterId, response.url, response.status)
+    if (!redirectInfo) return
+
+    this.financeJumpRedirects.set(this.sourceFlowKey(normalizeUrl(response.url, FINANCE_MASTER_PRO_BASE_URL)), redirectInfo)
+  }
+
   private financeReaderInfoFromUrl(url: string, chapterId: string): FinanceReaderInfo | undefined {
     if (!chapterId) return undefined
 
@@ -850,7 +866,8 @@ export class NineMangaClient {
   private financeRedirectInfoFromLocation(
     location: string,
     chapterId: string,
-    baseUrl: string
+    baseUrl: string,
+    status: number
   ): FinanceRedirectInfo | undefined {
     const readerUrl = normalizeUrl(location, baseUrl || FINANCE_MASTER_PRO_BASE_URL)
       .replace('://financemasterpro.com', '://www.financemasterpro.com')
@@ -862,6 +879,7 @@ export class NineMangaClient {
       readerPageId: readerInfo.financePostId,
       readerUrl: readerInfo.canonicalReaderUrl,
       location,
+      status,
     }
   }
 

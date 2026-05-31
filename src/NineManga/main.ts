@@ -98,7 +98,10 @@ class NineMangaExtension
   }
 
   async handleRedirect(proposedRequest: Request, redirectedResponse: Response): Promise<Request | undefined> {
-    if (this.isFinanceJumpRedirect(redirectedResponse)) return undefined
+    if (this.isFinanceJumpRedirect(redirectedResponse)) {
+      this.client.rememberFinanceJumpRedirect(redirectedResponse)
+    }
+
     return proposedRequest
   }
 
