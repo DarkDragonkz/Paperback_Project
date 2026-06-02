@@ -30,7 +30,7 @@ import {
   readNineMangaLanguageSetting,
 } from './NineMangaSettings'
 
-const SOURCE_VERSION = '1.0.32'
+const SOURCE_VERSION = '1.0.36'
 const CLOUDFLARE_COOKIE_TTL_MS = 7 * 24 * 60 * 60 * 1000
 const MOBILE_USER_AGENT =
   'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1'

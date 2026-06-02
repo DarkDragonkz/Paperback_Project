@@ -181,6 +181,22 @@ export class NineMangaParser {
     return uniqueStrings(images.filter((imageUrl) => this.isAllowedReaderImageUrl(imageUrl)))
   }
 
+  parseLocalizedReaderImageUrls(html: string, currentUrl = this.baseUrl): string[] {
+    const $ = cheerio.load(html)
+    const images: string[] = []
+
+    images.push(...this.parseImagesFromSelector($, 'div.pic_box a.pic_download[href]', currentUrl, true))
+    images.push(...this.parseImagesFromSelector($, 'a.pic_download[href]', currentUrl, true))
+    images.push(...this.parseImagesFromSelector($, 'div.pic_box img.manga_pic', currentUrl, false))
+    images.push(...this.parseImagesFromSelector($, 'img.manga_pic', currentUrl, false))
+    images.push(...this.parseImagesFromSelector($, 'section.mangaread-img img', currentUrl, false))
+    images.push(...this.parseImagesFromSelector($, 'div.mangaread-img img', currentUrl, false))
+    images.push(...this.parseImagesFromSelector($, 'div.chapter-content img', currentUrl, false))
+    images.push(...this.parseImagesFromSelector($, 'article img', currentUrl, false))
+
+    return uniqueStrings(images.filter((imageUrl) => this.isAllowedReaderImageUrl(imageUrl)))
+  }
+
   parseReaderPageUrls(html: string, currentUrl = this.baseUrl): string[] {
     const $ = cheerio.load(html)
     const pageUrls: string[] = []
