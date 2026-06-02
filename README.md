@@ -13,8 +13,6 @@ src/
     utils/
     foolslide/
     pizzareader/
-  AnimeGDRClub/
-  DigitalTeam/
   MangaWorld/
   NineManga/
   RCOStation/
@@ -23,7 +21,6 @@ src/
   DDTTeam/
   GTO/
   HastaTeam/
-  JuinJutsuTeamReader/
   LupiTeam/
   NIFTeam/
   PhoenixScans/
@@ -34,9 +31,9 @@ src/
 
 ## Source incluse
 
-- Source dedicate: AnimeGDRClub, DigitalTeam, MangaWorld, NineManga, RCOStation, ReadAllComics, ZeurelScan.
+- Source dedicate: MangaWorld, NineManga, RCOStation, ReadAllComics, ZeurelScan.
 - Source PizzaReader: DDTTeam, GTO, HastaTeam, LupiTeam, PhoenixScans, TuttoAnimeManga.
-- Source FoolSlide: JuinJutsuTeamReader, NIFTeam.
+- Source FoolSlide: NIFTeam.
 
 L'analisi dello ZIP usato per costruire la prima sorgente e in `docs/ninemanga-zip-analysis.md`.
 
