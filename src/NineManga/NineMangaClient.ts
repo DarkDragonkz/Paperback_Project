@@ -564,10 +564,6 @@ private chapterProgressionNumber(chapter: Chapter): number {
     debugLog(`[NineManga] Localized first page images parsed: ${firstImages.length} url=${firstResponse.url}`)
     pages.push(...firstImages)
 
-    if (firstImages.length > 1) {
-      return uniqueStrings(firstImages)
-    }
-
     const rawPageUrls = this.parser.parseReaderPageUrls(firstResponse.body, firstResponse.url)
     const pageUrls = uniqueStrings(rawPageUrls)
       .map((pageUrl) => this.withReaderWarning(normalizeUrl(pageUrl, this.baseUrl())))
