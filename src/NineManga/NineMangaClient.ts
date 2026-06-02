@@ -566,6 +566,20 @@ private chapterProgressionNumber(chapter: Chapter): number {
 
     const pageQueue: string[] = []
     const queuedOrVisited = new Set<string>([firstKey])
+    const enqueueNextBatchPageUrl = (currentUrl: string, parsedImageCount: number): void => {
+      if (parsedImageCount <= 0) return
+
+      const normalizedCurrentUrl = this.withReaderWarning(normalizeUrl(currentUrl, this.baseUrl()))
+      const match = normalizedCurrentUrl.match(/^(.*-)(\d+)-(\d+)(\.html)([?#].*)?$/i)
+      if (!match) return
+
+      const pageSize = Number(match[2])
+      const pageNumber = Number(match[3])
+      if (!Number.isFinite(pageSize) || !Number.isFinite(pageNumber) || pageSize <= 0 || pageNumber <= 0) return
+      if (parsedImageCount < pageSize) return
+
+      enqueuePageUrl(`${match[1]}${pageSize}-${pageNumber + 1}${match[4]}${match[5] ?? ''}`)
+    }
     const enqueuePageUrl = (rawUrl: string | undefined): void => {
       const normalizedUrl = this.withReaderWarning(normalizeUrl(rawUrl, this.baseUrl()))
       if (!normalizedUrl || !this.isNineMangaReaderUrl(normalizedUrl)) return
@@ -582,6 +596,7 @@ private chapterProgressionNumber(chapter: Chapter): number {
       enqueuePageUrl(pageUrl)
     }
     enqueuePageUrl(this.parser.parseReaderNextPageUrl(firstResponse.body, firstResponse.url))
+    enqueueNextBatchPageUrl(firstResponse.url, firstImages.length)
 
     debugLog(`[NineManga] Localized reader queued pages: ${pageQueue.length}`)
 
@@ -600,6 +615,7 @@ private chapterProgressionNumber(chapter: Chapter): number {
         enqueuePageUrl(nextPageUrl)
       }
       enqueuePageUrl(this.parser.parseReaderNextPageUrl(pageResponse.body, pageResponse.url))
+      enqueueNextBatchPageUrl(pageResponse.url, pageImages.length)
     }
 
     return uniqueStrings(pages)
