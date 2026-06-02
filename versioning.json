@@ -1,5 +1,5 @@
 {
-  "buildTime": "2026-06-02T17:49:04.788Z",
+  "buildTime": "2026-06-02T18:09:44.257Z",
   "builtWith": {
     "toolchain": "1.0.0-alpha.86",
     "types": "1.0.0-alpha.86"
@@ -228,7 +228,7 @@
       "id": "PhoenixScans"
     },
     {
-      "version": "1.0.0",
+      "version": "1.0.1",
       "name": "RCOStation",
       "icon": "icon.png",
       "description": "Comics e issue in inglese da RCOStation.",
