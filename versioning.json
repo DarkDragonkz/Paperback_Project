@@ -1,19 +1,19 @@
 {
-  "buildTime": "2026-05-31T16:41:25.104Z",
+  "buildTime": "2026-06-02T16:06:07.400Z",
   "builtWith": {
     "toolchain": "1.0.0-alpha.86",
     "types": "1.0.0-alpha.86"
   },
   "repository": {
     "name": "Paperback_Project",
-    "description": "A modular Paperback iOS 0.9 extension repository, starting with NineManga."
+    "description": "A modular multi-source Paperback iOS 0.9 extension repository."
   },
   "sources": [
     {
       "version": "1.0.0",
       "name": "AnimeGDRClub",
       "icon": "icon.png",
-      "description": "Anime GDR Club source using the AGC HTML catalogue, project pages, chapters, and generated reader image URLs.",
+      "description": "Italian AnimeGDRClub source with catalogue, search, chapters and reader support.",
       "contentRating": "MATURE",
       "developers": [
         {
@@ -40,7 +40,7 @@
       "version": "1.0.0",
       "name": "DDT Team",
       "icon": "icon.png",
-      "description": "DDT Team source using the PizzaReader JSON API for catalogue, search, chapters, and reader pages.",
+      "description": "Italian DDT Team scanlation source with catalogue, search, chapters and reader support.",
       "contentRating": "MATURE",
       "developers": [
         {
@@ -67,7 +67,7 @@
       "version": "1.0.0",
       "name": "DigitalTeam",
       "icon": "icon.png",
-      "description": "DigitalTeam source using the reader catalogue and c_i JSON endpoint for chapter pages.",
+      "description": "Italian DigitalTeam scanlation source with catalogue, search, chapters and reader support.",
       "contentRating": "MATURE",
       "developers": [
         {
@@ -94,7 +94,7 @@
       "version": "1.0.0",
       "name": "GTO The Great Site",
       "icon": "icon.png",
-      "description": "GTO The Great Site source using the PizzaReader JSON API for catalogue, search, chapters, and reader pages.",
+      "description": "Italian GTO The Great Site source with catalogue, search, chapters and reader support.",
       "contentRating": "MATURE",
       "developers": [
         {
@@ -121,7 +121,7 @@
       "version": "1.0.0",
       "name": "Hasta Team",
       "icon": "icon.png",
-      "description": "Hasta Team source using the PizzaReader JSON API for catalogue, search, chapters, and reader pages.",
+      "description": "Italian Hasta Team scanlation source with catalogue, search, chapters and reader support.",
       "contentRating": "MATURE",
       "developers": [
         {
@@ -148,7 +148,7 @@
       "version": "1.0.0",
       "name": "JuinJutsuTeamReader",
       "icon": "icon.png",
-      "description": "Juin Jutsu Team Reader source using the FoolSlide reader for catalogue, search, chapters, and pages.",
+      "description": "Italian Juin Jutsu Team Reader source with catalogue, search, chapters and reader support.",
       "contentRating": "SAFE",
       "developers": [
         {
@@ -175,7 +175,7 @@
       "version": "1.0.0",
       "name": "LupiTeam",
       "icon": "icon.png",
-      "description": "LupiTeam source using the PizzaReader JSON API for catalogue, search, chapters, and reader pages.",
+      "description": "Italian LupiTeam scanlation source with catalogue, search, chapters and reader support.",
       "contentRating": "MATURE",
       "developers": [
         {
@@ -202,7 +202,7 @@
       "version": "1.0.0",
       "name": "MangaWorld",
       "icon": "icon.png",
-      "description": "MangaWorld source using normal mobile browser requests for Italian manga catalogue, search, chapters, and reader pages.",
+      "description": "Italian MangaWorld source with catalogue, search, discover, chapters and reader support.",
       "contentRating": "MATURE",
       "developers": [
         {
@@ -229,7 +229,7 @@
       "version": "1.0.0",
       "name": "NIFTeam",
       "icon": "icon.png",
-      "description": "NIFTeam source using the FoolSlide reader for catalogue, search, chapters, and pages.",
+      "description": "Italian NIFTeam source with catalogue, search, chapters and reader support.",
       "contentRating": "MATURE",
       "developers": [
         {
@@ -256,7 +256,7 @@
       "version": "1.0.32",
       "name": "NineManga",
       "icon": "icon.png",
-      "description": "NineManga source for a modular Paperback iOS 0.9 extension repository.",
+      "description": "Multi-language NineManga source with configurable region and dedicated reader flows.",
       "contentRating": "ADULT",
       "developers": [
         {
@@ -267,9 +267,9 @@
       "language": "en",
       "badges": [
         {
-          "label": "Source",
+          "label": "Multi-language",
           "textColor": "#ffffff",
-          "backgroundColor": "#3b4252"
+          "backgroundColor": "#2563eb"
         }
       ],
       "capabilities": [
@@ -285,7 +285,7 @@
       "version": "1.0.0",
       "name": "Phoenix Scans",
       "icon": "icon.png",
-      "description": "Phoenix Scans source using the PizzaReader JSON API for catalogue, search, chapters, and reader pages.",
+      "description": "Italian Phoenix Scans source with catalogue, search, chapters and reader support.",
       "contentRating": "MATURE",
       "developers": [
         {
@@ -312,7 +312,7 @@
       "version": "1.0.0",
       "name": "RCOStation",
       "icon": "icon.png",
-      "description": "ReadComicOnline / RCOStation source using normal mobile browser requests for comics, issues, search, and reader pages.",
+      "description": "English comics source focused on RCOStation issues, search and reader support.",
       "contentRating": "MATURE",
       "developers": [
         {
@@ -339,7 +339,7 @@
       "version": "1.0.1",
       "name": "ReadAllComics",
       "icon": "icon.png",
-      "description": "ReadAllComics source using normal mobile browser requests for catalogue, search, chapters, and reader pages.",
+      "description": "English comics source focused on ReadAllComics series, issues and reader support.",
       "contentRating": "MATURE",
       "developers": [
         {
@@ -366,7 +366,7 @@
       "version": "1.0.0",
       "name": "TuttoAnimeManga",
       "icon": "icon.png",
-      "description": "TuttoAnimeManga source using the PizzaReader JSON API for catalogue, search, chapters, and reader pages.",
+      "description": "Italian TuttoAnimeManga source with catalogue, search, chapters and reader support.",
       "contentRating": "MATURE",
       "developers": [
         {
@@ -393,7 +393,7 @@
       "version": "1.0.0",
       "name": "ZeurelScan",
       "icon": "icon.png",
-      "description": "ZeurelScan source using normal browser requests for Italian manga catalogue, search, chapters, and reader pages.",
+      "description": "Italian ZeurelScan source with catalogue, search, chapters and reader support.",
       "contentRating": "SAFE",
       "developers": [
         {
