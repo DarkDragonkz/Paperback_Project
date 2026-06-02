@@ -10,8 +10,8 @@ import { normalizeUrl, pathIdFromUrl } from '../common/utils/url'
 import type { XoxoComicsListingItem, XoxoComicsMangaData } from './XoxoComicsModels'
 
 const MAX_SYNTHETIC_PAGES = 250
-const ISSUE_PATH_PATTERN = /\/comic\/[^/?#]+\/issue-[^/?#]+(?:\/|$)/i
-const READER_IMAGE_PATTERN = /\/comic\/[^/?#]+\/issue-[^/?#]+\/\d+\/\d+\.(?:jpe?g|png|webp)(?:[?#].*)?$/i
+const CHAPTER_PATH_PATTERN = /\/comic\/[^/?#]+\/(?!all(?:\/|$)|\d+(?:\/|$))[^/?#]+(?:\/|$)/i
+const READER_IMAGE_PATTERN = /\/comic\/[^/?#]+\/[^/?#]+\/\d+\/\d+\.(?:jpe?g|png|webp)(?:[?#].*)?$/i
 const BAD_IMAGE_PATTERN = /(logo|favicon|loading|avatar|ads?|advert|banner|tracking|pixel|blank|spacer|icon|sprite|preloader|loader|captcha|analytics|counter|button|emoji)/i
 
 export class XoxoComicsParser {
@@ -34,7 +34,10 @@ export class XoxoComicsParser {
 
       if (!this.isMangaUrl(mangaUrl) || !title) return
 
-      const latestAnchor = item.find('a[href*="/issue-"]').first()
+      const latestAnchor = item.find('a[href*="/comic/"]').filter((_, element) => {
+        const href = normalizeUrl($(element).attr('href'), this.baseUrl)
+        return this.isChapterUrl(href)
+      }).first()
       const latestUrl = normalizeUrl(latestAnchor.attr('href'), this.baseUrl)
 
       items.push({
@@ -43,7 +46,7 @@ export class XoxoComicsParser {
         imageUrl: normalizeUrl(this.firstImageAttribute(item.find('img').first()), this.baseUrl),
         url: mangaUrl,
         genres: [],
-        latestChapterId: latestUrl ? pathIdFromUrl(this.canonicalIssueUrl(latestUrl), this.baseUrl) : undefined,
+        latestChapterId: latestUrl ? pathIdFromUrl(this.canonicalChapterUrl(latestUrl), this.baseUrl) : undefined,
         latestChapterTitle: cleanText(latestAnchor.text()) || cleanText(latestAnchor.attr('title')),
         latestDate: cleanText(item.find('.time').first().text()),
       })
@@ -108,12 +111,28 @@ export class XoxoComicsParser {
     return syntheticPages.length > uniqueImages.length ? syntheticPages : uniqueImages
   }
 
+  parseMangaPageUrls(html: string, currentUrl: string): string[] {
+    const $ = cheerio.load(html)
+    const urls: string[] = []
+    const currentMangaPath = this.mangaPathFromUrl(currentUrl)
+
+    $('.pagination a[href]').each((_, element) => {
+      const url = normalizeUrl($(element).attr('href'), currentUrl || this.baseUrl)
+      if (!url || this.mangaPathFromUrl(url) !== currentMangaPath) return
+      if (!/[?&]page=\d+/i.test(url)) return
+
+      urls.push(url)
+    })
+
+    return uniqueStrings(urls).sort((left, right) => this.pageNumber(left) - this.pageNumber(right))
+  }
+
   allPagesUrl(rawUrl: string): string {
-    const canonical = this.canonicalIssueUrl(rawUrl)
+    const canonical = this.canonicalChapterUrl(rawUrl)
     return canonical ? `${canonical.replace(/\/$/, '')}/all` : ''
   }
 
-  canonicalIssueUrl(rawUrl: string): string {
+  canonicalChapterUrl(rawUrl: string): string {
     const normalized = normalizeUrl(rawUrl, this.baseUrl).replace(/[?#].*$/, '')
     if (!normalized) return ''
 
@@ -177,10 +196,10 @@ export class XoxoComicsParser {
       const row = $(element)
       if (row.hasClass('heading')) return
 
-      const anchor = row.find('.chapter a[href], a[href*="/issue-"]').first()
-      const issueUrl = this.canonicalIssueUrl(anchor.attr('href') ?? '')
+      const anchor = row.find('.chapter a[href], a[href*="/comic/"]').first()
+      const issueUrl = this.canonicalChapterUrl(anchor.attr('href') ?? '')
       const title = cleanText(anchor.text()) || this.titleFromIssueUrl(issueUrl)
-      if (!this.isIssueUrl(issueUrl) || !title) return
+      if (!this.isChapterUrl(issueUrl) || !title) return
 
       const dateText = cleanText(row.find('.text-center').last().text())
 
@@ -338,8 +357,8 @@ export class XoxoComicsParser {
     return /^https:\/\/xoxocomic\.com\/comic\/[^/?#]+\/?$/i.test(url)
   }
 
-  private isIssueUrl(url: string): boolean {
-    return /^https:\/\/xoxocomic\.com\/comic\/[^/?#]+\/issue-[^/?#]+\/?$/i.test(url)
+  private isChapterUrl(url: string): boolean {
+    return /^https:\/\/xoxocomic\.com\/comic\/[^/?#]+\/(?!all$|\d+$)[^/?#]+\/?$/i.test(url)
   }
 
   private isReaderImage(url: string): boolean {
@@ -347,7 +366,7 @@ export class XoxoComicsParser {
     if (!normalized || normalized.startsWith('data:')) return false
     if (BAD_IMAGE_PATTERN.test(normalized)) return false
     if (!/^https:\/\/xoxocomic\.com\//i.test(url)) return false
-    return READER_IMAGE_PATTERN.test(url) || ISSUE_PATH_PATTERN.test(url)
+    return READER_IMAGE_PATTERN.test(url) || CHAPTER_PATH_PATTERN.test(url)
   }
 
   private parseGenres(value: string): string[] {
@@ -378,8 +397,14 @@ export class XoxoComicsParser {
     const issue = value.match(/(?:issue\s*#?|#)\s*(\d+(?:\.\d+)?)/i)?.[1]
     if (issue) return Number(issue)
 
+    const tpb = value.match(/(?:_|\b)tpb[_\s-]*(\d+(?:\.\d+)?)/i)?.[1]
+    if (tpb) return Number(tpb)
+
     const slugIssue = value.match(/\/issue-(\d+(?:\.\d+)?)/i)?.[1]
-    return slugIssue ? Number(slugIssue) : 0
+    if (slugIssue) return Number(slugIssue)
+
+    const slugTpb = value.match(/\/tpb-(\d+(?:\.\d+)?)/i)?.[1]
+    return slugTpb ? Number(slugTpb) : 0
   }
 
   private parseDate(value: string): Date | undefined {
@@ -409,6 +434,15 @@ export class XoxoComicsParser {
       .replace(/\s+/g, ' ')
       .trim()
       .replace(/\b\w/g, (character) => character.toUpperCase())
+  }
+
+  private mangaPathFromUrl(rawUrl: string): string {
+    const normalized = normalizeUrl(rawUrl, this.baseUrl)
+    return normalized.match(/\/comic\/[^/?#]+/i)?.[0] ?? ''
+  }
+
+  private pageNumber(rawUrl: string): number {
+    return Number(rawUrl.match(/[?&]page=(\d+)/i)?.[1] ?? 1)
   }
 
   private toTagGroups(genres: string[]): TagSection[] {
