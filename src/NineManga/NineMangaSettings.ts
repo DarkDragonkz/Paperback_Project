@@ -1,4 +1,4 @@
-import { Form, NavigationRow, Section, SelectRow } from '@paperback/types'
+import { Form, Section, SelectRow } from '@paperback/types'
 
 import {
   NINEMANGA_LANGUAGE_CONFIGS,
@@ -30,15 +30,7 @@ function selectedLanguageLabel(): string {
   return NINEMANGA_LANGUAGE_CONFIGS[readNineMangaLanguageSetting()].label
 }
 
-function selectedReaderFlowLabel(): string {
-  const cfg = NINEMANGA_LANGUAGE_CONFIGS[readNineMangaLanguageSetting()]
-
-  return cfg.flowType === 'english-finance-gate'
-    ? 'Finance gate reader'
-    : 'Localized Tascabile reader'
-}
-
-class NineMangaLanguageSettingsForm extends Form {
+export class NineMangaSettingsForm extends Form {
   private readonly languageOptions = Object.values(NINEMANGA_LANGUAGE_CONFIGS).map((cfg) => ({
     id: cfg.id,
     title: cfg.label,
@@ -48,19 +40,18 @@ class NineMangaLanguageSettingsForm extends Form {
     return [
       Section(
         {
-          id: 'ninemanga_language_settings',
-          footer: `Current reader flow: ${selectedReaderFlowLabel()}.`,
+          id: 'ninemanga_settings',
         },
         [
           SelectRow(NINEMANGA_LANGUAGE_STATE_KEY, {
-            title: 'Language / Region',
-            subtitle: `${selectedLanguageLabel()} - ${selectedReaderFlowLabel()}`,
+            title: 'Lingua',
+            subtitle: selectedLanguageLabel(),
             value: [readNineMangaLanguageSetting()],
             options: this.languageOptions,
             minItemCount: 1,
             maxItemCount: 1,
             onValueChange: Application.Selector(
-              this as NineMangaLanguageSettingsForm,
+              this as NineMangaSettingsForm,
               'handleLanguageChange'
             ),
           }),
@@ -80,25 +71,5 @@ class NineMangaLanguageSettingsForm extends Form {
 
     this.reloadForm()
     Application.invalidateDiscoverSections()
-  }
-}
-
-export class NineMangaSettingsForm extends Form {
-  override getSections() {
-    return [
-      Section(
-        {
-          id: 'ninemanga_settings',
-          footer: 'Changes refresh Discover automatically.',
-        },
-        [
-          NavigationRow('ninemanga_language', {
-            title: 'Language / Region',
-            subtitle: `${selectedLanguageLabel()} - ${selectedReaderFlowLabel()}`,
-            form: new NineMangaLanguageSettingsForm(),
-          }),
-        ]
-      ),
-    ]
   }
 }
