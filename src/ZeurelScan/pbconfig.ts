@@ -4,9 +4,8 @@ const sourceInfo = {
   version: '1.0.0',
   name: 'ZeurelScan',
   icon: 'icon.png',
-  description:
-    'Italian ZeurelScan source with catalogue, search, chapters and reader support.',
-  contentRating: ContentRating.EVERYONE,
+  description: 'Manga e scanlation in italiano dal catalogo ZeurelScan.',
+  contentRating: ContentRating.MATURE,
   developers: [
     {
       name: 'DarkDragonkz',
@@ -18,7 +17,7 @@ const sourceInfo = {
     {
       label: 'Scan ITA',
       textColor: '#ffffff',
-      backgroundColor: '#2563eb',
+      backgroundColor: '#16a34a',
     },
   ],
   capabilities: [

@@ -4,8 +4,7 @@ const sourceInfo = {
   version: '1.0.0',
   name: 'DDT Team',
   icon: 'icon.png',
-  description:
-    'Italian DDT Team scanlation source with catalogue, search, chapters and reader support.',
+  description: 'Manga e scanlation in italiano dal catalogo DDT Team.',
   contentRating: ContentRating.MATURE,
   developers: [
     {
@@ -16,9 +15,9 @@ const sourceInfo = {
   language: 'it',
   badges: [
     {
-      label: 'PizzaReader',
+      label: 'Scan ITA',
       textColor: '#ffffff',
-      backgroundColor: '#ef4444',
+      backgroundColor: '#16a34a',
     },
   ],
   capabilities: [

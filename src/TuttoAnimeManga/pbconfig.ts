@@ -4,8 +4,7 @@ const sourceInfo = {
   version: '1.0.0',
   name: 'TuttoAnimeManga',
   icon: 'icon.png',
-  description:
-    'Italian TuttoAnimeManga source with catalogue, search, chapters and reader support.',
+  description: 'Manga in italiano dal catalogo TuttoAnimeManga.',
   contentRating: ContentRating.MATURE,
   developers: [
     {
@@ -16,9 +15,9 @@ const sourceInfo = {
   language: 'it',
   badges: [
     {
-      label: 'PizzaReader',
+      label: 'Manga ITA',
       textColor: '#ffffff',
-      backgroundColor: '#ef4444',
+      backgroundColor: '#2563eb',
     },
   ],
   capabilities: [

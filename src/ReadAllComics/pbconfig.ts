@@ -4,8 +4,7 @@ const sourceInfo = {
   version: '1.0.1',
   name: 'ReadAllComics',
   icon: 'icon.png',
-  description:
-    'English comics source focused on ReadAllComics series, issues and reader support.',
+  description: 'Comics e issue in inglese da ReadAllComics.',
   contentRating: ContentRating.MATURE,
   developers: [
     {
@@ -16,9 +15,9 @@ const sourceInfo = {
   language: 'en',
   badges: [
     {
-      label: 'Western Comics',
+      label: 'Comics EN',
       textColor: '#ffffff',
-      backgroundColor: '#334155',
+      backgroundColor: '#7c3aed',
     },
   ],
   capabilities: [

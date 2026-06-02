@@ -4,8 +4,7 @@ const sourceInfo = {
   version: '1.0.0',
   name: 'NIFTeam',
   icon: 'icon.png',
-  description:
-    'Italian NIFTeam source with catalogue, search, chapters and reader support.',
+  description: 'Manga e scanlation in italiano dal catalogo NIFTeam.',
   contentRating: ContentRating.MATURE,
   developers: [
     {
@@ -16,9 +15,9 @@ const sourceInfo = {
   language: 'it',
   badges: [
     {
-      label: 'FoolSlide',
+      label: 'Scan ITA',
       textColor: '#ffffff',
-      backgroundColor: '#0f766e',
+      backgroundColor: '#16a34a',
     },
   ],
   capabilities: [

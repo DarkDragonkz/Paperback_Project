@@ -31,9 +31,10 @@ src/
 
 ## Source incluse
 
-- Source dedicate: MangaWorld, NineManga, RCOStation, ReadAllComics, ZeurelScan.
-- Source PizzaReader: DDTTeam, GTO, HastaTeam, LupiTeam, PhoenixScans, TuttoAnimeManga.
-- Source FoolSlide: NIFTeam.
+- Manga ITA: GTO, MangaWorld, TuttoAnimeManga.
+- Scan ITA: DDTTeam, HastaTeam, LupiTeam, NIFTeam, PhoenixScans, ZeurelScan.
+- Multi: NineManga.
+- Comics EN: RCOStation, ReadAllComics.
 
 L'analisi dello ZIP usato per costruire la prima sorgente e in `docs/ninemanga-zip-analysis.md`.
 
