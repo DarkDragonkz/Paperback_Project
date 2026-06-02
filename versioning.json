@@ -1,5 +1,5 @@
 {
-  "buildTime": "2026-06-02T16:06:07.400Z",
+  "buildTime": "2026-06-02T16:29:09.242Z",
   "builtWith": {
     "toolchain": "1.0.0-alpha.86",
     "types": "1.0.0-alpha.86"
@@ -253,7 +253,7 @@
       "id": "NIFTeam"
     },
     {
-      "version": "1.0.32",
+      "version": "1.0.36",
       "name": "NineManga",
       "icon": "icon.png",
       "description": "Multi-language NineManga source with configurable region and dedicated reader flows.",
