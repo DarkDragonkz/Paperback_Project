@@ -1,3 +1,4 @@
+import { debugLog } from '../common/utils/logging'
 import {
   ContentRating,
   DiscoverSectionType,
@@ -111,7 +112,7 @@ export class MangaWorldClient {
     const response = await this.getHtml(chapterUrl)
     const pages = this.parser.parseChapterPages(response.body, response.url)
 
-    console.log(`[MangaWorld] Reader images returned: ${pages.length}`)
+    debugLog(`[MangaWorld] Reader images returned: ${pages.length}`)
     if (pages.length === 0) throw new Error('No readable pages found for this MangaWorld chapter')
 
     return {

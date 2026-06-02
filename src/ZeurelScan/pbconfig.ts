@@ -5,7 +5,7 @@ const sourceInfo = {
   name: 'ZeurelScan',
   icon: 'icon.png',
   description:
-    'ZeurelScan source using normal browser requests for Italian manga catalogue, search, chapters, and reader pages.',
+    'Italian ZeurelScan source with catalogue, search, chapters and reader support.',
   contentRating: ContentRating.EVERYONE,
   developers: [
     {

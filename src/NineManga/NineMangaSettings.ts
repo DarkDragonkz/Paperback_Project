@@ -30,6 +30,14 @@ function selectedLanguageLabel(): string {
   return NINEMANGA_LANGUAGE_CONFIGS[readNineMangaLanguageSetting()].label
 }
 
+function selectedReaderFlowLabel(): string {
+  const cfg = NINEMANGA_LANGUAGE_CONFIGS[readNineMangaLanguageSetting()]
+
+  return cfg.flowType === 'english-finance-gate'
+    ? 'Finance gate reader'
+    : 'Localized Tascabile reader'
+}
+
 class NineMangaLanguageSettingsForm extends Form {
   private readonly languageOptions = Object.values(NINEMANGA_LANGUAGE_CONFIGS).map((cfg) => ({
     id: cfg.id,
@@ -41,12 +49,12 @@ class NineMangaLanguageSettingsForm extends Form {
       Section(
         {
           id: 'ninemanga_language_settings',
-          footer: 'Select the NineManga language/region used by this source.',
+          footer: `Current reader flow: ${selectedReaderFlowLabel()}.`,
         },
         [
           SelectRow(NINEMANGA_LANGUAGE_STATE_KEY, {
-            title: 'Language',
-            subtitle: selectedLanguageLabel(),
+            title: 'Language / Region',
+            subtitle: `${selectedLanguageLabel()} - ${selectedReaderFlowLabel()}`,
             value: [readNineMangaLanguageSetting()],
             options: this.languageOptions,
             minItemCount: 1,
@@ -81,12 +89,12 @@ export class NineMangaSettingsForm extends Form {
       Section(
         {
           id: 'ninemanga_settings',
-          footer: 'NineManga settings',
+          footer: 'Changes refresh Discover automatically.',
         },
         [
           NavigationRow('ninemanga_language', {
-            title: 'Language',
-            subtitle: selectedLanguageLabel(),
+            title: 'Language / Region',
+            subtitle: `${selectedLanguageLabel()} - ${selectedReaderFlowLabel()}`,
             form: new NineMangaLanguageSettingsForm(),
           }),
         ]

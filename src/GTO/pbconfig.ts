@@ -5,7 +5,7 @@ const sourceInfo = {
   name: 'GTO The Great Site',
   icon: 'icon.png',
   description:
-    'GTO The Great Site source using the PizzaReader JSON API for catalogue, search, chapters, and reader pages.',
+    'Italian GTO The Great Site source with catalogue, search, chapters and reader support.',
   contentRating: ContentRating.MATURE,
   developers: [
     {

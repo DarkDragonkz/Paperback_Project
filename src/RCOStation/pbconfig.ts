@@ -5,7 +5,7 @@ const sourceInfo = {
   name: 'RCOStation',
   icon: 'icon.png',
   description:
-    'ReadComicOnline / RCOStation source using normal mobile browser requests for comics, issues, search, and reader pages.',
+    'English comics source focused on RCOStation issues, search and reader support.',
   contentRating: ContentRating.MATURE,
   developers: [
     {

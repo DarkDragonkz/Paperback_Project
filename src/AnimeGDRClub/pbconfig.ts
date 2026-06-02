@@ -5,7 +5,7 @@ const sourceInfo = {
   name: 'AnimeGDRClub',
   icon: 'icon.png',
   description:
-    'Anime GDR Club source using the AGC HTML catalogue, project pages, chapters, and generated reader image URLs.',
+    'Italian AnimeGDRClub source with catalogue, search, chapters and reader support.',
   contentRating: ContentRating.MATURE,
   developers: [
     {

@@ -1,3 +1,4 @@
+import { debugLog } from '../common/utils/logging'
 import type {
   Chapter,
   ChapterDetails,
@@ -25,7 +26,7 @@ class ZeurelScanExtension
   private readonly client = new ZeurelScanClient()
 
   async initialise(): Promise<void> {
-    console.log(`[ZeurelScan] Initialising source ${SOURCE_VERSION}`)
+    debugLog(`[ZeurelScan] Initialising source ${SOURCE_VERSION}`)
   }
 
   async getMangaDetails(mangaId: string): Promise<SourceManga> {

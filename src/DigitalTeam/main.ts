@@ -1,3 +1,4 @@
+import { debugLog } from '../common/utils/logging'
 import type {
   Chapter,
   ChapterDetails,
@@ -34,7 +35,7 @@ class DigitalTeamExtension
 
   async initialise(): Promise<void> {
     this.imageInterceptor.registerInterceptor()
-    console.log(`[DigitalTeam] Initialising source ${SOURCE_VERSION}`)
+    debugLog(`[DigitalTeam] Initialising source ${SOURCE_VERSION}`)
   }
 
   async getMangaDetails(mangaId: string): Promise<SourceManga> {

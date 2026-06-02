@@ -1,3 +1,4 @@
+import { debugLog } from '../common/utils/logging'
 import {
   ContentRating,
   DiscoverSectionType,
@@ -87,7 +88,7 @@ export class RCOStationClient {
     const rawUrl = chapter.additionalInfo?.url ?? chapter.chapterId
     const pages = await this.getReaderPages(rawUrl)
 
-    console.log(`[RCOStation] Reader images returned: ${pages.length}`)
+    debugLog(`[RCOStation] Reader images returned: ${pages.length}`)
     if (pages.length === 0) throw new Error('No readable pages found for this RCOStation issue')
 
     return {
@@ -189,7 +190,7 @@ export class RCOStationClient {
     try {
       return (await this.getComicData(mangaId)).imageUrl
     } catch (error) {
-      console.log(`[RCOStation] Could not load cover for ${mangaId}: ${String(error)}`)
+      debugLog(`[RCOStation] Could not load cover for ${mangaId}: ${String(error)}`)
       return ''
     }
   }

@@ -5,7 +5,7 @@ const sourceInfo = {
   name: 'MangaWorld',
   icon: 'icon.png',
   description:
-    'MangaWorld source using normal mobile browser requests for Italian manga catalogue, search, chapters, and reader pages.',
+    'Italian MangaWorld source with catalogue, search, discover, chapters and reader support.',
   contentRating: ContentRating.MATURE,
   developers: [
     {

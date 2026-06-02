@@ -1,3 +1,4 @@
+import { debugLog } from '../utils/logging'
 import {
   DiscoverSectionType,
   EndOfPageResults,
@@ -72,7 +73,7 @@ export class PizzaReaderClient {
     const comic = await this.getComic(sourceManga.mangaId)
     const chapters = this.parser.toChapters(comic.chapters ?? [], sourceManga)
 
-    console.log(`[${this.config.sourceName}] Chapters returned: ${chapters.length}`)
+    debugLog(`[${this.config.sourceName}] Chapters returned: ${chapters.length}`)
     return chapters
   }
 
@@ -83,14 +84,14 @@ export class PizzaReaderClient {
     for (const endpoint of endpoints) {
       const result = await this.getApi<PizzaReaderChapterResponse>(endpoint, 0)
       pages = this.parser.chapterPages(result.chapter)
-      console.log(
+      debugLog(
         `[${this.config.sourceName}] Reader endpoint ${endpoint} returned ${pages.length} images`
       )
 
       if (pages.length > 0) break
     }
 
-    console.log(`[${this.config.sourceName}] Reader images returned: ${pages.length}`)
+    debugLog(`[${this.config.sourceName}] Reader images returned: ${pages.length}`)
     if (pages.length === 0) throw new Error(`No readable pages found for this ${this.config.sourceName} chapter`)
 
     return {
@@ -129,7 +130,7 @@ export class PizzaReaderClient {
         ) ||
         chapters.find((candidate) => candidate.full_title === chapter.title)
     } catch (error) {
-      console.log(`[${this.config.sourceName}] Could not refresh chapter URL: ${String(error)}`)
+      debugLog(`[${this.config.sourceName}] Could not refresh chapter URL: ${String(error)}`)
       return undefined
     }
   }

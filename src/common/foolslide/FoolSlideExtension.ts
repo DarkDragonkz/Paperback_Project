@@ -1,3 +1,4 @@
+import { debugLog } from '../utils/logging'
 import type {
   Chapter,
   ChapterDetails,
@@ -31,7 +32,7 @@ class FoolSlideExtension
   }
 
   async initialise(): Promise<void> {
-    console.log(`[${this.config.sourceName}] Initialising source ${this.version}`)
+    debugLog(`[${this.config.sourceName}] Initialising source ${this.version}`)
   }
 
   async getMangaDetails(mangaId: string): Promise<SourceManga> {

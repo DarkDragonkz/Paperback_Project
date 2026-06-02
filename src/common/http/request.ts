@@ -1,3 +1,4 @@
+import { debugLog } from '../utils/logging'
 import { CloudflareError, type Request, type Response } from '@paperback/types'
 
 import { normalizeUrl } from '../utils/url'
@@ -60,14 +61,14 @@ async function getTextWithRedirects(
   const body = Application.arrayBufferToUTF8String(data)
 
   if (isCloudflareChallenge(response, body)) {
-    console.log(`[NineManga] Cloudflare challenge detected: ${response.status} ${request.url}`)
+    debugLog(`[NineManga] Cloudflare challenge detected: ${response.status} ${request.url}`)
     throwCloudflareError(request)
   }
 
   const redirectUrl = redirectLocation(response)
   if (redirectUrl && redirectCount < MAX_REDIRECTS) {
     const nextUrl = normalizeUrl(redirectUrl, response.url || request.url)
-    console.log(`[NineManga] Following redirect ${response.status}: ${nextUrl}`)
+    debugLog(`[NineManga] Following redirect ${response.status}: ${nextUrl}`)
 
     return getTextWithRedirects(
       nextUrl,

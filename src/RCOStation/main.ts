@@ -1,3 +1,4 @@
+import { debugLog } from '../common/utils/logging'
 import type {
   Chapter,
   ChapterDetails,
@@ -37,7 +38,7 @@ class RCOStationExtension
 
   async initialise(): Promise<void> {
     this.imageInterceptor.registerInterceptor()
-    console.log(`[RCOStation] Initialising source ${SOURCE_VERSION}`)
+    debugLog(`[RCOStation] Initialising source ${SOURCE_VERSION}`)
   }
 
   async getMangaDetails(mangaId: string): Promise<SourceManga> {

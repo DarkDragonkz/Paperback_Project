@@ -92,7 +92,10 @@ export class NineMangaParser {
     const metadata = this.parseMetadata($)
     const genres = this.parseGenres($, metadata)
     const bookId = this.parseBookId(html)
-    const warningUrl = normalizeUrl($('a[href*="waring=1"]').first().attr('href'), this.baseUrl) || undefined
+    const warningUrl = normalizeUrl(
+      $('a[href*="waring=1"], a[href*="warning=1"]').first().attr('href'),
+      this.baseUrl
+    ) || undefined
     const synopsis = this.parseSynopsis($)
     const isAdult = Boolean(warningUrl) || this.hasAdultTags(genres)
 

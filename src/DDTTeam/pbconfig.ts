@@ -5,7 +5,7 @@ const sourceInfo = {
   name: 'DDT Team',
   icon: 'icon.png',
   description:
-    'DDT Team source using the PizzaReader JSON API for catalogue, search, chapters, and reader pages.',
+    'Italian DDT Team scanlation source with catalogue, search, chapters and reader support.',
   contentRating: ContentRating.MATURE,
   developers: [
     {

@@ -1,3 +1,4 @@
+import { debugLog } from '../common/utils/logging'
 import {
   ContentRating,
   DiscoverSectionType,
@@ -144,7 +145,7 @@ export class NineMangaClient {
       this.config = next
       this.parser = new NineMangaParser(this.config.baseUrl, this.config.langCode)
       this.clearLanguageSensitiveCaches()
-      console.log(`[NineManga] Language switched to ${this.config.id}; cleared language-sensitive caches`)
+      debugLog(`[NineManga] Language switched to ${this.config.id}; cleared language-sensitive caches`)
     }
   }
 
@@ -216,7 +217,7 @@ private chapterProgressionNumber(chapter: Chapter): number {
     const pages = await this.resolveReaderImages(preparedChapter, chapterUrl)
 
     const uniquePages = uniqueStrings(pages)
-    console.log(`[NineManga] Reader images returned: ${uniquePages.length}`)
+    debugLog(`[NineManga] Reader images returned: ${uniquePages.length}`)
     if (uniquePages.length === 0) {
       throw new Error('NineManga reader: no readable images found. Page may require WebView/Cloudflare session.')
     }
@@ -343,7 +344,7 @@ private chapterProgressionNumber(chapter: Chapter): number {
       return await this.getListing(config, page)
     } catch (error) {
       if (error instanceof CloudflareBypassInProgressError) {
-        console.log(`[NineManga] Skipping ${config.id}; Cloudflare bypass is already pending`)
+        debugLog(`[NineManga] Skipping ${config.id}; Cloudflare bypass is already pending`)
         return []
       }
 
@@ -392,7 +393,7 @@ private chapterProgressionNumber(chapter: Chapter): number {
     const chapterId = this.chapterIdFromUrl(chapter.additionalInfo?.url ?? chapter.chapterId) || undefined
     const cachedFinancePostId = chapterId ? this.financeReaderPageIdByChapterId.get(chapterId) : undefined
     if (chapterId && cachedFinancePostId) {
-      console.log(`[NineManga] Finance reader page id cache hit: chapterId=${chapterId} readerPageId=${cachedFinancePostId}`)
+      debugLog(`[NineManga] Finance reader page id cache hit: chapterId=${chapterId} readerPageId=${cachedFinancePostId}`)
     }
 
     const state: ReaderResolutionState = {
@@ -418,7 +419,7 @@ private chapterProgressionNumber(chapter: Chapter): number {
     const candidates = this.readerDirectCandidates(chapter, chapterUrl)
     this.rememberGateUrl(chapterUrl, state)
 
-    console.log(`[NineManga] Reader direct candidates: ${candidates.length}`)
+    debugLog(`[NineManga] Reader direct candidates: ${candidates.length}`)
 
     for (const candidate of candidates) {
       const pages = await this.resolveNineMangaReaderCandidate(candidate, state)
@@ -511,13 +512,13 @@ private chapterProgressionNumber(chapter: Chapter): number {
 
     const cachedPages = this.cacheValue(this.localizedReaderCache, cacheKey)
     if (cachedPages) {
-      console.log(`[NineManga] Localized reader cache hit: ${cachedPages.length} pages`)
+      debugLog(`[NineManga] Localized reader cache hit: ${cachedPages.length} pages`)
       return cachedPages
     }
 
     const activeRequest = this.localizedReaderRequests.get(cacheKey)
     if (activeRequest) {
-      console.log('[NineManga] Localized reader request deduplicated')
+      debugLog('[NineManga] Localized reader request deduplicated')
       return activeRequest
     }
 
@@ -539,7 +540,7 @@ private chapterProgressionNumber(chapter: Chapter): number {
     chapterUrl: string,
     state: ReaderResolutionState
   ): Promise<string[]> {
-    console.log(`[NineManga] Localized Tascabile reader start: ${chapterUrl}`)
+    debugLog(`[NineManga] Localized Tascabile reader start: ${chapterUrl}`)
 
     const firstResponse = await this.getLocalizedTascabileHtml(chapterUrl, this.baseUrl(), state)
     if (!firstResponse) return []
@@ -557,7 +558,7 @@ private chapterProgressionNumber(chapter: Chapter): number {
     const currentChapterBaseKey = this.localizedChapterBaseKey(firstUrl)
 
     const firstImages = this.parser.parseReaderImageUrls(firstResponse.body, firstResponse.url)
-    console.log(`[NineManga] Localized first page images parsed: ${firstImages.length} url=${firstResponse.url}`)
+    debugLog(`[NineManga] Localized first page images parsed: ${firstImages.length} url=${firstResponse.url}`)
     pages.push(...firstImages)
 
     const rawPageUrls = this.parser.parseReaderPageUrls(firstResponse.body, firstResponse.url)
@@ -569,11 +570,11 @@ private chapterProgressionNumber(chapter: Chapter): number {
       .filter((pageUrl) => this.localizedChapterBaseKey(pageUrl) === currentChapterBaseKey)
       .slice(0, MAX_READER_REQUESTS - 1)
 
-    console.log(`[NineManga] Localized reader page URLs parsed: ${rawPageUrls.length}; accepted: ${pageUrls.length}`)
+    debugLog(`[NineManga] Localized reader page URLs parsed: ${rawPageUrls.length}; accepted: ${pageUrls.length}`)
 
     for (let index = 0; index < pageUrls.length; index += MAX_LOCALIZED_CONCURRENT_REQUESTS) {
       const batch = pageUrls.slice(index, index + MAX_LOCALIZED_CONCURRENT_REQUESTS)
-      console.log(`[NineManga] Localized reader page batch: ${index + 1}-${index + batch.length}/${pageUrls.length}`)
+      debugLog(`[NineManga] Localized reader page batch: ${index + 1}-${index + batch.length}/${pageUrls.length}`)
 
       const responses = await Promise.all(
         batch.map((pageUrl) => this.getLocalizedTascabileHtml(pageUrl, firstResponse.url, state))
@@ -583,7 +584,7 @@ private chapterProgressionNumber(chapter: Chapter): number {
         if (!pageResponse) continue
 
         const pageImages = this.parser.parseReaderImageUrls(pageResponse.body, pageResponse.url)
-        console.log(`[NineManga] Localized reader page images parsed: ${pageImages.length} url=${pageResponse.url}`)
+        debugLog(`[NineManga] Localized reader page images parsed: ${pageImages.length} url=${pageResponse.url}`)
         pages.push(...pageImages)
       }
     }
@@ -610,7 +611,7 @@ private chapterProgressionNumber(chapter: Chapter): number {
     if (!normalizedUrl) return undefined
 
     if (state.requestCount >= MAX_READER_REQUESTS) {
-      console.log(`[NineManga] Localized reader request limit reached at ${MAX_READER_REQUESTS}`)
+      debugLog(`[NineManga] Localized reader request limit reached at ${MAX_READER_REQUESTS}`)
       return undefined
     }
 
@@ -619,7 +620,7 @@ private chapterProgressionNumber(chapter: Chapter): number {
     try {
       return await getText(normalizedUrl, await this.getReaderHeaders(referer))
     } catch (error) {
-      console.log(`[NineManga] Localized reader page request failed: ${normalizedUrl}`)
+      debugLog(`[NineManga] Localized reader page request failed: ${normalizedUrl}`)
       return undefined
     }
   }
@@ -629,15 +630,15 @@ private chapterProgressionNumber(chapter: Chapter): number {
     state: ReaderResolutionState
   ): Promise<string[]> {
     state.gateFallbackAttempted = true
-    console.log(`[NineManga] Gate fallback start: ${state.chapterId ?? 'unknown'}`)
+    debugLog(`[NineManga] Gate fallback start: ${state.chapterId ?? 'unknown'}`)
 
     const response = await this.getGateHtml(gateUrl, this.gateRefererForUrl(gateUrl, state), state)
     if (!response) return []
 
-    console.log(`[NineManga] Gate fallback response URL: ${response.url}`)
+    debugLog(`[NineManga] Gate fallback response URL: ${response.url}`)
 
     const classification = this.parser.classifyReaderPage(response.body, response.url)
-    console.log(`[NineManga] Gate fallback classification: ${classification}`)
+    debugLog(`[NineManga] Gate fallback classification: ${classification}`)
 
     if (this.isFinanceMasterProUrl(response.url)) {
       const markers = this.parser.parseExternalReaderMarkers(
@@ -646,7 +647,7 @@ private chapterProgressionNumber(chapter: Chapter): number {
         state.bookId,
         state.chapterId
       )
-      console.log(
+      debugLog(
         `[NineManga] External reader markers: allImgs=${markers.allImgs} mangaPic=${markers.mangaPic} bookId=${markers.bookId} chapterId=${markers.chapterId} movietop=${markers.movietop}`
       )
 
@@ -659,12 +660,12 @@ private chapterProgressionNumber(chapter: Chapter): number {
             state.bookId,
             state.chapterId
           )
-          console.log(
+          debugLog(
             `[NineManga] External reader markers: allImgs=${alternateMarkers.allImgs} mangaPic=${alternateMarkers.mangaPic} bookId=${alternateMarkers.bookId} chapterId=${alternateMarkers.chapterId} movietop=${alternateMarkers.movietop}`
           )
 
           if (this.hasExternalReaderMarkers(alternateMarkers)) {
-            console.log(`[NineManga] External reader detected: ${alternateResponse.url}`)
+            debugLog(`[NineManga] External reader detected: ${alternateResponse.url}`)
             this.rememberFinanceReaderPageId(alternateResponse.url, state)
             const alternatePages = this.parser.parseReaderImageUrls(alternateResponse.body, alternateResponse.url)
             this.logExtractedImages(alternatePages)
@@ -681,7 +682,7 @@ private chapterProgressionNumber(chapter: Chapter): number {
         throw new Error('NineManga reader: FinanceMasterPro reached without reader markers. Gate context/referrer may be missing.')
       }
 
-      console.log(`[NineManga] External reader detected: ${response.url}`)
+      debugLog(`[NineManga] External reader detected: ${response.url}`)
       this.rememberFinanceReaderPageId(response.url, state)
       const pages = this.parser.parseReaderImageUrls(response.body, response.url)
       this.logExtractedImages(pages)
@@ -691,11 +692,11 @@ private chapterProgressionNumber(chapter: Chapter): number {
     }
 
     const directImages = this.parser.parseReaderImageUrls(response.body, response.url)
-    console.log(`[NineManga] Gate fallback reader images parsed: ${directImages.length}`)
+    debugLog(`[NineManga] Gate fallback reader images parsed: ${directImages.length}`)
     if (directImages.length > 0) {
       if (this.config.flowType === 'localized-tascabile') {
         const pageUrls = this.parser.parseReaderPageUrls(response.body, response.url)
-        console.log(`[NineManga] Localized reader page URLs parsed: ${pageUrls.length}`)
+        debugLog(`[NineManga] Localized reader page URLs parsed: ${pageUrls.length}`)
 
         if (pageUrls.length > 1) {
           const pages: string[] = [...directImages]
@@ -719,7 +720,7 @@ private chapterProgressionNumber(chapter: Chapter): number {
             if (pageClassification !== 'real-reader') continue
 
             const pageImages = this.parser.parseReaderImageUrls(pageResponse.body, pageResponse.url)
-            console.log(`[NineManga] Localized reader page images parsed: ${pageImages.length} url=${pageResponse.url}`)
+            debugLog(`[NineManga] Localized reader page images parsed: ${pageImages.length} url=${pageResponse.url}`)
             pages.push(...pageImages)
           }
 
@@ -736,15 +737,15 @@ private chapterProgressionNumber(chapter: Chapter): number {
     }
 
     const redirectUrl = this.parser.parseReaderRedirectUrl(response.body, response.url)
-    console.log(`[NineManga] Gate fallback redirect URL: ${redirectUrl || 'none'}`)
+    debugLog(`[NineManga] Gate fallback redirect URL: ${redirectUrl || 'none'}`)
 
     const sourceUrl = this.parser.parseSourceSelectionUrl(response.body)
-    console.log(`[NineManga] Gate fallback source URL: ${sourceUrl || 'none'}`)
+    debugLog(`[NineManga] Gate fallback source URL: ${sourceUrl || 'none'}`)
 
     const gateCandidateUrls = this.parser.parseGateCandidateUrls(response.body, response.url)
     const gateCandidates = this.parser.parseGateCandidates(response.body, response.url)
     this.logGateCandidates(response.url, gateCandidates)
-    console.log(`[NineManga] Gate source links found: ${gateCandidateUrls.length}`)
+    debugLog(`[NineManga] Gate source links found: ${gateCandidateUrls.length}`)
 
     const nextUrls = uniqueStrings([
       redirectUrl,
@@ -753,7 +754,7 @@ private chapterProgressionNumber(chapter: Chapter): number {
     ].filter(Boolean) as string[])
 
     if (nextUrls.length === 0) {
-      console.log(`[NineManga] NineManga gate fallback: no candidate URLs found at ${response.url}`)
+      debugLog(`[NineManga] NineManga gate fallback: no candidate URLs found at ${response.url}`)
     }
 
     const financeJumpUrl = this.financeJumpUrlForState(state)
@@ -765,7 +766,7 @@ private chapterProgressionNumber(chapter: Chapter): number {
     ) {
       nextUrls.push(financeJumpUrl)
     }
-    if (financeJumpUrl) console.log(`[NineManga] Finance jump url: ${financeJumpUrl}`)
+    if (financeJumpUrl) debugLog(`[NineManga] Finance jump url: ${financeJumpUrl}`)
     if (nextUrls.length > 0) state.gateCandidateUrlsFound = true
 
     for (const nextUrl of nextUrls.filter((url) => this.isNineMangaReaderUrl(url))) {
@@ -798,7 +799,7 @@ private chapterProgressionNumber(chapter: Chapter): number {
     if (!normalizedUrl || state.visitedUrls.has(key)) return undefined
 
     if (state.requestCount >= MAX_READER_REQUESTS) {
-      console.log(`[NineManga] Reader request limit reached at ${MAX_READER_REQUESTS}`)
+      debugLog(`[NineManga] Reader request limit reached at ${MAX_READER_REQUESTS}`)
       return undefined
     }
 
@@ -825,7 +826,7 @@ private chapterProgressionNumber(chapter: Chapter): number {
     if (!normalizedUrl || state.visitedUrls.has(key)) return undefined
 
     if (state.requestCount >= MAX_READER_REQUESTS) {
-      console.log(`[NineManga] Reader request limit reached at ${MAX_READER_REQUESTS}`)
+      debugLog(`[NineManga] Reader request limit reached at ${MAX_READER_REQUESTS}`)
       return undefined
     }
 
@@ -835,11 +836,11 @@ private chapterProgressionNumber(chapter: Chapter): number {
     const financeJumpChapterId = this.financeChapterIdFromJumpUrl(normalizedUrl)
     if (financeJumpChapterId) {
       if (!state.chapterId) state.chapterId = financeJumpChapterId
-      console.log(`[NineManga] Finance jump chapterId: ${financeJumpChapterId}`)
-      console.log(`[NineManga] Finance jump no-follow request: ${normalizedUrl}`)
+      debugLog(`[NineManga] Finance jump chapterId: ${financeJumpChapterId}`)
+      debugLog(`[NineManga] Finance jump no-follow request: ${normalizedUrl}`)
     }
 
-    console.log(`[NineManga] Gate request: ${normalizedUrl} referer=${referer}`)
+    debugLog(`[NineManga] Gate request: ${normalizedUrl} referer=${referer}`)
     const request = {
       url: normalizedUrl,
       method: 'GET',
@@ -852,15 +853,15 @@ private chapterProgressionNumber(chapter: Chapter): number {
     const redirectStatus = capturedFinanceRedirect?.status ?? response.status
     this.rememberGateCookies(response.headers, normalizedUrl, state)
 
-    console.log(`[NineManga] Gate response: status=${response.status} url=${response.url}`)
-    console.log(`[NineManga] Gate redirect location: ${location || 'none'}`)
+    debugLog(`[NineManga] Gate response: status=${response.status} url=${response.url}`)
+    debugLog(`[NineManga] Gate redirect location: ${location || 'none'}`)
     if (financeJumpChapterId) {
-      console.log(`[NineManga] Finance jump response url: ${response.url}`)
-      console.log(`[NineManga] Finance jump redirect status: ${redirectStatus}`)
-      console.log(`[NineManga] Finance jump redirect location: ${location || 'none'}`)
+      debugLog(`[NineManga] Finance jump response url: ${response.url}`)
+      debugLog(`[NineManga] Finance jump redirect status: ${redirectStatus}`)
+      debugLog(`[NineManga] Finance jump redirect location: ${location || 'none'}`)
     }
     if (this.isFinanceMasterProUrl(normalizedUrl) || this.isFinanceMasterProUrl(response.url)) {
-      console.log(`[NineManga] Finance response headers: ${this.headersForLog(response.headers)}`)
+      debugLog(`[NineManga] Finance response headers: ${this.headersForLog(response.headers)}`)
       this.logFinanceBodyHints(body)
     }
 
@@ -872,22 +873,22 @@ private chapterProgressionNumber(chapter: Chapter): number {
         state.financePostId = financeRedirectInfo.readerPageId
         state.financeReaderInfoDetected = true
         this.rememberFinanceReaderPageId(financeRedirectInfo.readerUrl, state)
-        console.log(
+        debugLog(
           `[NineManga] Finance reader page id from redirect: chapterId=${financeRedirectInfo.chapterId} readerPageId=${financeRedirectInfo.readerPageId}`
         )
-        console.log(`[NineManga] Finance reader url from redirect: ${financeRedirectInfo.readerUrl}`)
-        console.log(`[NineManga] Finance final reader request: ${financeRedirectInfo.readerUrl}`)
+        debugLog(`[NineManga] Finance reader url from redirect: ${financeRedirectInfo.readerUrl}`)
+        debugLog(`[NineManga] Finance final reader request: ${financeRedirectInfo.readerUrl}`)
       }
 
       const nextUrl = financeRedirectInfo?.readerUrl ?? normalizeUrl(location, response.url || normalizedUrl)
       const redirected = await this.getGateHtml(nextUrl, referer, state, redirectCount + 1)
       if (redirected) {
-        console.log(`[NineManga] Gate final URL: ${redirected.url}`)
+        debugLog(`[NineManga] Gate final URL: ${redirected.url}`)
         return redirected
       }
     }
 
-    console.log(`[NineManga] Gate final URL: ${response.url}`)
+    debugLog(`[NineManga] Gate final URL: ${response.url}`)
 
     return {
       url: response.url,
@@ -908,22 +909,22 @@ private chapterProgressionNumber(chapter: Chapter): number {
     if (candidates.length === 0) return undefined
 
     for (const candidate of candidates) {
-      console.log(`[NineManga] Finance alternate reader url: ${candidate}`)
+      debugLog(`[NineManga] Finance alternate reader url: ${candidate}`)
       const candidateReaderInfo = this.financeReaderInfoFromUrl(candidate, state.chapterId ?? '')
       const isChapterEndpoint = this.isFinanceChapterEndpointUrl(candidate)
       const isFinanceJump = Boolean(this.financeChapterIdFromJumpUrl(candidate))
       if (candidateReaderInfo) {
-        console.log(`[NineManga] Finance canonical reader request: ${candidate}`)
+        debugLog(`[NineManga] Finance canonical reader request: ${candidate}`)
         this.allowOneFinanceCanonicalCookieRetry(candidate, state)
       }
       if (isChapterEndpoint) {
-        console.log(`[NineManga] Finance chapter endpoint candidate: ${candidate}`)
+        debugLog(`[NineManga] Finance chapter endpoint candidate: ${candidate}`)
       }
 
       const response = await this.getGateHtml(candidate, SWEETTOOTH_BASE_URL, state)
       if (!response) continue
       if (isChapterEndpoint) {
-        console.log(`[NineManga] Finance chapter endpoint response url: ${response.url}`)
+        debugLog(`[NineManga] Finance chapter endpoint response url: ${response.url}`)
       }
       const responseReaderInfo = this.financeReaderInfoFromUrl(response.url, state.chapterId ?? '')
 
@@ -934,15 +935,15 @@ private chapterProgressionNumber(chapter: Chapter): number {
         state.chapterId
       )
       if (isChapterEndpoint) {
-        console.log(
+        debugLog(
           `[NineManga] Finance chapter endpoint markers: allImgs=${markers.allImgs} mangaPic=${markers.mangaPic} bookId=${markers.bookId} chapterId=${markers.chapterId} movietop=${markers.movietop}`
         )
       }
-      console.log(
+      debugLog(
         `[NineManga] Finance alternate markers: allImgs=${markers.allImgs} mangaPic=${markers.mangaPic} bookId=${markers.bookId} chapterId=${markers.chapterId} movietop=${markers.movietop}`
       )
       if (candidateReaderInfo || responseReaderInfo || isFinanceJump) {
-        console.log(
+        debugLog(
           `[NineManga] Finance final reader markers: allImgs=${markers.allImgs} mangaPic=${markers.mangaPic} bookId=${markers.bookId} chapterId=${markers.chapterId} movietop=${markers.movietop}`
         )
       }
@@ -974,14 +975,14 @@ private chapterProgressionNumber(chapter: Chapter): number {
     const postId = readerInfo?.financePostId || state.financePostId || fallbackReaderPageId
     const candidates: string[] = []
 
-    if (headerPostId) console.log(`[NineManga] Finance post id from headers: ${headerPostId}`)
-    if (htmlPostId) console.log(`[NineManga] Finance post id from body: ${htmlPostId}`)
+    if (headerPostId) debugLog(`[NineManga] Finance post id from headers: ${headerPostId}`)
+    if (htmlPostId) debugLog(`[NineManga] Finance post id from body: ${htmlPostId}`)
 
     if (readerInfo) {
       state.financePostId = readerInfo.financePostId
       state.financeReaderInfoDetected = true
       this.rememberFinanceReaderPageId(readerInfo.canonicalReaderUrl, state, false)
-      console.log(
+      debugLog(
         `[NineManga] Finance reader info: postId=${readerInfo.financePostId} chapterId=${readerInfo.chapterId} canonical=${readerInfo.canonicalReaderUrl}`
       )
       candidates.push(readerInfo.canonicalReaderUrl)
@@ -1001,36 +1002,36 @@ private chapterProgressionNumber(chapter: Chapter): number {
         state.financePostId = htmlReaderInfo.financePostId
         state.financeReaderInfoDetected = true
         this.rememberFinanceReaderPageId(htmlReaderInfo.canonicalReaderUrl, state, false)
-        console.log(
+        debugLog(
           `[NineManga] Finance reader info: postId=${htmlReaderInfo.financePostId} chapterId=${htmlReaderInfo.chapterId} canonical=${htmlReaderInfo.canonicalReaderUrl}`
         )
       }
 
-      console.log(`[NineManga] Finance canonical fallback candidate: ${htmlUrl}`)
+      debugLog(`[NineManga] Finance canonical fallback candidate: ${htmlUrl}`)
       candidates.push(htmlReaderInfo?.canonicalReaderUrl ?? htmlUrl)
     }
 
     if (postId && readerSlugPath) {
       const candidate = `https://www.financemasterpro.com${readerSlugPath}/${postId}.html`
-      console.log(`[NineManga] Finance canonical fallback candidate: ${candidate}`)
+      debugLog(`[NineManga] Finance canonical fallback candidate: ${candidate}`)
       candidates.push(candidate)
     }
 
     if (state.financePostId && state.financePostId !== postId && readerSlugPath) {
       const candidate = `https://www.financemasterpro.com${readerSlugPath}/${state.financePostId}.html`
-      console.log(`[NineManga] Finance canonical fallback candidate: ${candidate}`)
+      debugLog(`[NineManga] Finance canonical fallback candidate: ${candidate}`)
       candidates.push(candidate)
     }
 
     if (!/\.html$/i.test(hostlessPath) && readerSlugPath) {
       const candidate = `https://www.financemasterpro.com${hostlessPath}.html`
-      console.log(`[NineManga] Finance canonical fallback candidate: ${candidate}`)
+      debugLog(`[NineManga] Finance canonical fallback candidate: ${candidate}`)
       candidates.push(candidate)
     }
 
     if (!normalized.includes('://www.')) {
       const candidate = normalized.replace('://financemasterpro.com', '://www.financemasterpro.com')
-      console.log(`[NineManga] Finance canonical fallback candidate: ${candidate}`)
+      debugLog(`[NineManga] Finance canonical fallback candidate: ${candidate}`)
       candidates.push(candidate)
     }
 
@@ -1159,7 +1160,7 @@ private isFinanceChapterEndpointUrl(url: string): boolean {
     const previous = this.financeReaderPageIdByChapterId.get(readerInfo.chapterId)
     this.financeReaderPageIdByChapterId.set(readerInfo.chapterId, readerInfo.financePostId)
     if (previous !== readerInfo.financePostId) {
-      console.log(
+      debugLog(
         `[NineManga] Finance reader page id discovered: chapterId=${readerInfo.chapterId} readerPageId=${readerInfo.financePostId}`
       )
     }
@@ -1220,20 +1221,20 @@ private isFinanceChapterEndpointUrl(url: string): boolean {
   private logReaderClassification(url: string, classification: NineMangaReaderPageKind): void {
     if (classification === 'real-reader') return
 
-    console.log(`[NineManga] Reader classified ${classification}: ${url}`)
+    debugLog(`[NineManga] Reader classified ${classification}: ${url}`)
   }
 
   private logGateCandidates(url: string, candidates: NineMangaGateCandidate[]): void {
     if (candidates.length === 0) {
-      console.log(`[NineManga] Gate candidate URLs found at ${url}: 0`)
+      debugLog(`[NineManga] Gate candidate URLs found at ${url}: 0`)
       return
     }
 
-    console.log(`[NineManga] Gate candidate URLs found at ${url}: ${candidates.length}`)
+    debugLog(`[NineManga] Gate candidate URLs found at ${url}: ${candidates.length}`)
 
     for (const candidate of candidates) {
       const label = candidate.label ? ` label="${candidate.label}"` : ''
-      console.log(`[NineManga] Gate candidate ${candidate.source}${label}: ${candidate.url}`)
+      debugLog(`[NineManga] Gate candidate ${candidate.source}${label}: ${candidate.url}`)
     }
   }
 
@@ -1413,7 +1414,7 @@ private financeJumpUrlForState(state: ReaderResolutionState): string {
     const finalUrl = shouldUseCanonical ? canonicalUrl : storedUrl || canonicalUrl
 
     if (shouldUseCanonical) {
-      console.log(`[NineManga] Reader using canonical URL instead of stored URL: ${canonicalUrl}`)
+      debugLog(`[NineManga] Reader using canonical URL instead of stored URL: ${canonicalUrl}`)
     }
 
     return finalUrl
@@ -1483,8 +1484,8 @@ private financeJumpUrlForState(state: ReaderResolutionState): string {
     const cookie = this.gateCookieHeader(url, state)
     const cookieHeader = cookie ? `ninemanga_list_num=1; ${cookie}` : 'ninemanga_list_num=1'
     if (this.isFinanceMasterProUrl(url)) {
-      console.log(`[NineManga] Finance cookie header: ${this.truncateLogValue(cookieHeader)}`)
-      console.log(`[NineManga] Gate request cookie header for FinanceMasterPro: ${this.truncateLogValue(cookieHeader)}`)
+      debugLog(`[NineManga] Finance cookie header: ${this.truncateLogValue(cookieHeader)}`)
+      debugLog(`[NineManga] Gate request cookie header for FinanceMasterPro: ${this.truncateLogValue(cookieHeader)}`)
     }
 
     return mergeHeaders(await defaultBrowserHeaders(referer), {
@@ -1518,9 +1519,9 @@ private financeJumpUrlForState(state: ReaderResolutionState): string {
       if (hints.length >= 20) break
     }
 
-    console.log(`[NineManga] Finance body URL hints: ${hints.length}`)
+    debugLog(`[NineManga] Finance body URL hints: ${hints.length}`)
     for (const hint of hints.slice(0, 10)) {
-      console.log(`[NineManga] Finance body hint: ${this.truncateLogValue(hint)}`)
+      debugLog(`[NineManga] Finance body hint: ${this.truncateLogValue(hint)}`)
     }
   }
 
@@ -1546,7 +1547,7 @@ private financeJumpUrlForState(state: ReaderResolutionState): string {
       stored += 1
     }
 
-    if (stored > 0) console.log(`[NineManga] Gate cookies stored for ${host}: ${stored}`)
+    if (stored > 0) debugLog(`[NineManga] Gate cookies stored for ${host}: ${stored}`)
   }
 
   private applyFinanceGateCookies(state: ReaderResolutionState): void {
@@ -1567,7 +1568,7 @@ private financeJumpUrlForState(state: ReaderResolutionState): string {
     this.rememberGateCookiePair('.financemasterpro.com', `lrgarden_lang=${readerLangCode}`, state)
     state.financeGateCookiesApplied = true
 
-    if (shouldLog) console.log(`[NineManga] Finance gate cookies applied: lrgarden_visit_check_${financePostId}=${state.chapterId}`)
+    if (shouldLog) debugLog(`[NineManga] Finance gate cookies applied: lrgarden_visit_check_${financePostId}=${state.chapterId}`)
   }
 
   private rememberGateCookiePair(host: string, pair: string, state: ReaderResolutionState): void {
@@ -1597,10 +1598,10 @@ private financeJumpUrlForState(state: ReaderResolutionState): string {
   }
 
   private logExtractedImages(images: string[]): void {
-    console.log(`[NineManga] Reader images extracted: ${images.length}`)
+    debugLog(`[NineManga] Reader images extracted: ${images.length}`)
 
     for (const imageUrl of images.slice(0, 3)) {
-      console.log(`[NineManga] Reader image sample: ${this.truncateLogValue(imageUrl)}`)
+      debugLog(`[NineManga] Reader image sample: ${this.truncateLogValue(imageUrl)}`)
     }
   }
 
@@ -1632,7 +1633,7 @@ private financeJumpUrlForState(state: ReaderResolutionState): string {
         },
       }
     } catch (error) {
-      console.log(`[NineManga] Could not refresh manga metadata for reader unlock: ${String(error)}`)
+      debugLog(`[NineManga] Could not refresh manga metadata for reader unlock: ${String(error)}`)
       return chapter
     }
   }
@@ -1663,7 +1664,7 @@ private financeJumpUrlForState(state: ReaderResolutionState): string {
         path: '/',
         expires,
       })
-      console.log(`[NineManga] Set reader unlock cookies for book ${bookId}, chapter ${chapterId}, domain ${domain}`)
+      debugLog(`[NineManga] Set reader unlock cookies for book ${bookId}, chapter ${chapterId}, domain ${domain}`)
     }
   }
 

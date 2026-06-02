@@ -5,7 +5,7 @@ const sourceInfo = {
   name: 'Hasta Team',
   icon: 'icon.png',
   description:
-    'Hasta Team source using the PizzaReader JSON API for catalogue, search, chapters, and reader pages.',
+    'Italian Hasta Team scanlation source with catalogue, search, chapters and reader support.',
   contentRating: ContentRating.MATURE,
   developers: [
     {

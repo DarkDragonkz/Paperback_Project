@@ -23,7 +23,7 @@ export function pathIdFromUrl(rawUrl: string, baseUrl: string): string {
   const normalized = normalizeUrl(rawUrl, baseUrl)
   const origin = originFromUrl(normalized)
   const pathWithQuery = stripHash(origin ? normalized.slice(origin.length) : normalized)
-  return pathWithQuery.replace(/\?waring=1$/, '')
+  return pathWithQuery.replace(/\?(?:waring|warning)=1$/, '')
 }
 
 export function withQueryParam(rawUrl: string, baseUrl: string, key: string, value: string): string {

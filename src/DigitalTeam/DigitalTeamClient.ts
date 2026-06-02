@@ -1,3 +1,4 @@
+import { debugLog } from '../common/utils/logging'
 import {
   ContentRating,
   DiscoverSectionType,
@@ -40,7 +41,7 @@ export class DigitalTeamClient {
 
   async getChapters(sourceManga: SourceManga): Promise<Chapter[]> {
     const data = await this.getMangaData(sourceManga.mangaId)
-    console.log(`[DigitalTeam] Chapters returned: ${data.chapters.length}`)
+    debugLog(`[DigitalTeam] Chapters returned: ${data.chapters.length}`)
 
     return data.chapters.map((chapter) => ({
       ...chapter,
@@ -70,7 +71,7 @@ export class DigitalTeamClient {
     )
     const pages = this.parser.parseReaderPages(pagesResponse.body, info.external)
 
-    console.log(`[DigitalTeam] Reader images returned: ${pages.length}`)
+    debugLog(`[DigitalTeam] Reader images returned: ${pages.length}`)
     if (pages.length === 0) throw new Error('No readable pages found for this DigitalTeam chapter')
 
     return {

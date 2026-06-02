@@ -1,3 +1,4 @@
+import { debugLog } from '../utils/logging'
 import {
   ContentRating,
   type Chapter,
@@ -108,7 +109,7 @@ export class FoolSlideParser {
           .map((page) => normalizeUrl(page.url, currentUrl))
           .filter(Boolean)
       } catch (error) {
-        console.log(`[${this.config.sourceName}] Could not parse FoolSlide pages JSON: ${String(error)}`)
+        debugLog(`[${this.config.sourceName}] Could not parse FoolSlide pages JSON: ${String(error)}`)
       }
     }
 

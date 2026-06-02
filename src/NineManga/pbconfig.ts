@@ -5,7 +5,7 @@ const sourceInfo = {
   name: 'NineManga',
   icon: 'icon.png',
   description:
-    'NineManga source for a modular Paperback iOS 0.9 extension repository.',
+    'Multi-language NineManga source with configurable region and dedicated reader flows.',
   contentRating: ContentRating.ADULT,
   developers: [
     {
@@ -16,9 +16,9 @@ const sourceInfo = {
   language: 'en',
   badges: [
     {
-      label: 'Source',
+      label: 'Multi-language',
       textColor: '#ffffff',
-      backgroundColor: '#3b4252',
+      backgroundColor: '#2563eb',
     },
   ],
   capabilities: [

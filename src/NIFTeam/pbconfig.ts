@@ -5,7 +5,7 @@ const sourceInfo = {
   name: 'NIFTeam',
   icon: 'icon.png',
   description:
-    'NIFTeam source using the FoolSlide reader for catalogue, search, chapters, and pages.',
+    'Italian NIFTeam source with catalogue, search, chapters and reader support.',
   contentRating: ContentRating.MATURE,
   developers: [
     {

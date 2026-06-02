@@ -1,3 +1,4 @@
+import { debugLog } from '../common/utils/logging'
 import type {
   Chapter,
   ChapterDetails,
@@ -38,7 +39,7 @@ class ReadAllComicsExtension
 
   async initialise(): Promise<void> {
     this.imageInterceptor.registerInterceptor()
-    console.log(`[ReadAllComics] Initialising source ${SOURCE_VERSION}`)
+    debugLog(`[ReadAllComics] Initialising source ${SOURCE_VERSION}`)
   }
 
   async getMangaDetails(mangaId: string): Promise<SourceManga> {

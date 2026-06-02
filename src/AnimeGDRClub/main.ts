@@ -1,3 +1,4 @@
+import { debugLog } from '../common/utils/logging'
 import type {
   Chapter,
   ChapterDetails,
@@ -34,7 +35,7 @@ class AnimeGDRClubExtension
 
   async initialise(): Promise<void> {
     this.imageInterceptor.registerInterceptor()
-    console.log(`[AnimeGDRClub] Initialising source ${SOURCE_VERSION}`)
+    debugLog(`[AnimeGDRClub] Initialising source ${SOURCE_VERSION}`)
   }
 
   async getMangaDetails(mangaId: string): Promise<SourceManga> {

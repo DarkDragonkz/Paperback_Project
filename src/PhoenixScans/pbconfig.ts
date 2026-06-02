@@ -5,7 +5,7 @@ const sourceInfo = {
   name: 'Phoenix Scans',
   icon: 'icon.png',
   description:
-    'Phoenix Scans source using the PizzaReader JSON API for catalogue, search, chapters, and reader pages.',
+    'Italian Phoenix Scans source with catalogue, search, chapters and reader support.',
   contentRating: ContentRating.MATURE,
   developers: [
     {

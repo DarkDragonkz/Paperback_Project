@@ -5,7 +5,7 @@ const sourceInfo = {
   name: 'LupiTeam',
   icon: 'icon.png',
   description:
-    'LupiTeam source using the PizzaReader JSON API for catalogue, search, chapters, and reader pages.',
+    'Italian LupiTeam scanlation source with catalogue, search, chapters and reader support.',
   contentRating: ContentRating.MATURE,
   developers: [
     {

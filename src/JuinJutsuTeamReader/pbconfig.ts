@@ -5,7 +5,7 @@ const sourceInfo = {
   name: 'JuinJutsuTeamReader',
   icon: 'icon.png',
   description:
-    'Juin Jutsu Team Reader source using the FoolSlide reader for catalogue, search, chapters, and pages.',
+    'Italian Juin Jutsu Team Reader source with catalogue, search, chapters and reader support.',
   contentRating: ContentRating.EVERYONE,
   developers: [
     {

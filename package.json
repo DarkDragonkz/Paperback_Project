@@ -2,7 +2,7 @@
   "name": "Paperback_Project",
   "repositoryName": "Paperback_Project",
   "version": "1.0.0",
-  "description": "A modular Paperback iOS 0.9 extension repository, starting with NineManga.",
+  "description": "A modular multi-source Paperback iOS 0.9 extension repository.",
   "private": true,
   "type": "module",
   "scripts": {

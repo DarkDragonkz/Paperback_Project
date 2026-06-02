@@ -5,7 +5,7 @@ const sourceInfo = {
   name: 'ReadAllComics',
   icon: 'icon.png',
   description:
-    'ReadAllComics source using normal mobile browser requests for catalogue, search, chapters, and reader pages.',
+    'English comics source focused on ReadAllComics series, issues and reader support.',
   contentRating: ContentRating.MATURE,
   developers: [
     {

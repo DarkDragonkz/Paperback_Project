@@ -1,3 +1,4 @@
+import { debugLog } from '../utils/logging'
 import {
   ContentRating,
   DiscoverSectionType,
@@ -45,7 +46,7 @@ export class FoolSlideClient {
 
   async getChapters(sourceManga: SourceManga): Promise<Chapter[]> {
     const data = await this.getMangaData(sourceManga.mangaId)
-    console.log(`[${this.config.sourceName}] Chapters returned: ${data.chapters.length}`)
+    debugLog(`[${this.config.sourceName}] Chapters returned: ${data.chapters.length}`)
 
     return data.chapters.map((chapter) => ({
       ...chapter,
@@ -58,7 +59,7 @@ export class FoolSlideClient {
     const response = await this.getHtml(this.pageOneUrl(chapterUrl), chapterUrl)
     const pages = this.parser.parseChapterPages(response.body, response.url)
 
-    console.log(`[${this.config.sourceName}] Reader images returned: ${pages.length}`)
+    debugLog(`[${this.config.sourceName}] Reader images returned: ${pages.length}`)
     if (pages.length === 0) throw new Error(`No readable pages found for this ${this.config.sourceName} chapter`)
 
     return {

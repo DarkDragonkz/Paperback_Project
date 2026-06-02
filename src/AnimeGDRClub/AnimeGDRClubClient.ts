@@ -1,3 +1,4 @@
+import { debugLog } from '../common/utils/logging'
 import {
   ContentRating,
   DiscoverSectionType,
@@ -40,7 +41,7 @@ export class AnimeGDRClubClient {
 
   async getChapters(sourceManga: SourceManga): Promise<Chapter[]> {
     const data = await this.getMangaData(sourceManga.mangaId)
-    console.log(`[AnimeGDRClub] Chapters returned: ${data.chapters.length}`)
+    debugLog(`[AnimeGDRClub] Chapters returned: ${data.chapters.length}`)
 
     return data.chapters.map((chapter) => ({
       ...chapter,
@@ -53,7 +54,7 @@ export class AnimeGDRClubClient {
     const response = await this.getHtml(chapterUrl, chapter.sourceManga.mangaInfo.shareUrl || BASE_URL)
     const pages = this.parser.parseChapterPages(response.body, response.url)
 
-    console.log(`[AnimeGDRClub] Reader images returned: ${pages.length}`)
+    debugLog(`[AnimeGDRClub] Reader images returned: ${pages.length}`)
     if (pages.length === 0) throw new Error('No readable pages found for this AnimeGDRClub chapter')
 
     return {

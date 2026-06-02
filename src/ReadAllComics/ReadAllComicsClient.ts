@@ -1,3 +1,4 @@
+import { debugLog } from '../common/utils/logging'
 import {
   ContentRating,
   DiscoverSectionType,
@@ -42,11 +43,6 @@ const SECTIONS: ReadAllComicsListingConfig[] = [
     title: 'Latest Updates',
     includeChapterUpdates: true,
   },
-  {
-    id: 'catalog',
-    title: 'Recently Updated Series',
-    includeChapterUpdates: false,
-  },
 ]
 
 interface CacheEntry<T> {
@@ -78,7 +74,7 @@ export class ReadAllComicsClient {
     const response = await this.getHtml(chapterUrl)
     const pages = this.parser.parseIssueImages(response.body, response.url)
 
-    console.log(`[ReadAllComics] Reader images returned: ${pages.length}`)
+    debugLog(`[ReadAllComics] Reader images returned: ${pages.length}`)
     if (pages.length === 0) throw new Error('No readable comic pages found for this chapter')
 
     return {
@@ -160,7 +156,7 @@ export class ReadAllComicsClient {
     const response = await this.getHtml(url)
     const items = this.parser.parseCatalogItems(response.body)
 
-    console.log(`[ReadAllComics] Latest page ${page} parsed items: ${items.length}`)
+    debugLog(`[ReadAllComics] Latest page ${page} parsed items: ${items.length}`)
 
     return items
   }
@@ -181,7 +177,7 @@ export class ReadAllComicsClient {
       const ajaxConfig = this.parser.parseWpAjaxConfig(homepage.body)
       const nonce = ajaxConfig.nonce
       if (!nonce) {
-        console.log('[ReadAllComics] AJAX search nonce not found')
+        debugLog('[ReadAllComics] AJAX search nonce not found')
         return []
       }
 
@@ -197,7 +193,7 @@ export class ReadAllComicsClient {
 
       return this.parser.parseAjaxSearchResults(response.body)
     } catch (error) {
-      console.log(`[ReadAllComics] AJAX search fallback failed: ${String(error)}`)
+      debugLog(`[ReadAllComics] AJAX search fallback failed: ${String(error)}`)
       return []
     }
   }
@@ -252,8 +248,6 @@ export class ReadAllComicsClient {
         return 'Cover picks from the latest page'
       case 'latest':
         return 'Newest comic issues'
-      case 'catalog':
-        return 'Series with fresh activity'
       default:
         return ''
     }

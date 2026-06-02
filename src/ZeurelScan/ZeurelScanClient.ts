@@ -1,3 +1,4 @@
+import { debugLog } from '../common/utils/logging'
 import {
   ContentRating,
   DiscoverSectionType,
@@ -65,7 +66,7 @@ export class ZeurelScanClient {
 
   async getChapters(sourceManga: SourceManga): Promise<Chapter[]> {
     const data = await this.getMangaData(sourceManga.mangaId)
-    console.log(`[ZeurelScan] Chapters returned: ${data.chapters.length}`)
+    debugLog(`[ZeurelScan] Chapters returned: ${data.chapters.length}`)
 
     return data.chapters.map((chapter) => ({
       ...chapter,
@@ -78,7 +79,7 @@ export class ZeurelScanClient {
     const response = await this.getHtml(chapterUrl, chapter.sourceManga.mangaInfo.shareUrl || BASE_URL)
     const pages = this.parser.parseChapterPages(response.body, response.url)
 
-    console.log(`[ZeurelScan] Reader images returned: ${pages.length}`)
+    debugLog(`[ZeurelScan] Reader images returned: ${pages.length}`)
     if (pages.length === 0) throw new Error('No readable pages found for this ZeurelScan chapter')
 
     return {

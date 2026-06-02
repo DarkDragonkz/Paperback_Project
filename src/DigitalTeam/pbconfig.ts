@@ -5,7 +5,7 @@ const sourceInfo = {
   name: 'DigitalTeam',
   icon: 'icon.png',
   description:
-    'DigitalTeam source using the reader catalogue and c_i JSON endpoint for chapter pages.',
+    'Italian DigitalTeam scanlation source with catalogue, search, chapters and reader support.',
   contentRating: ContentRating.MATURE,
   developers: [
     {
