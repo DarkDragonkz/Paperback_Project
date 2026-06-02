@@ -1,5 +1,5 @@
 {
-  "buildTime": "2026-06-02T18:13:55.190Z",
+  "buildTime": "2026-06-02T18:27:24.844Z",
   "builtWith": {
     "toolchain": "1.0.0-alpha.86",
     "types": "1.0.0-alpha.86"
@@ -307,6 +307,33 @@
         4
       ],
       "id": "TuttoAnimeManga"
+    },
+    {
+      "version": "1.0.0",
+      "name": "XoxoComics",
+      "icon": "icon.png",
+      "description": "Comics e issue in inglese da XoxoComics.",
+      "contentRating": "MATURE",
+      "developers": [
+        {
+          "name": "DarkDragonkz",
+          "github": "DarkDragonkz"
+        }
+      ],
+      "language": "en",
+      "badges": [
+        {
+          "label": "Comics EN",
+          "textColor": "#ffffff",
+          "backgroundColor": "#7c3aed"
+        }
+      ],
+      "capabilities": [
+        1,
+        64,
+        4
+      ],
+      "id": "XoxoComics"
     },
     {
       "version": "1.0.0",
