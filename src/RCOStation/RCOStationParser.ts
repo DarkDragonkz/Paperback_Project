@@ -364,19 +364,45 @@ export class RCOStationParser {
   private parseProtectedReaderImageUrls(html: string): string[] {
     const images: string[] = []
 
+    for (const scriptMatch of html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)) {
+      const script = scriptMatch[1] ?? ''
+      for (const blockMatch of script.matchAll(/(?:^|[;\n\r])\s*pth\s*=\s*(['"])([\s\S]*?)\1\s*;([\s\S]*?)_aUeupRL\.push\(\s*pth\s*\)\s*;/g)) {
+        const imageUrl = this.decodeProtectedBlogspotPath(
+          this.applyProtectedPathReplacements(blockMatch[2] ?? '', blockMatch[3] ?? '')
+        )
+        if (this.isValidReaderImage(imageUrl)) images.push(imageUrl)
+      }
+    }
+
+    if (images.length > 0) return uniqueStrings(images)
+
     for (const match of html.matchAll(/pth\s*=\s*(['"])([\s\S]*?)\1\s*;/g)) {
-      const imageUrl = this.decodeProtectedBlogspotPath(match[2] ?? '')
+      const imageUrl = this.decodeProtectedBlogspotPath(this.decodeJsString(match[2] ?? ''))
       if (this.isValidReaderImage(imageUrl)) images.push(imageUrl)
     }
 
     return uniqueStrings(images)
   }
 
+  private applyProtectedPathReplacements(rawPath: string, transformBlock: string): string {
+    let value = this.decodeJsString(rawPath)
+
+    for (const match of transformBlock.matchAll(/pth\s*=\s*pth\.replace\(\s*\/((?:\\\/|[^/])*)\/([gimsuy]*)\s*,\s*(['"])([\s\S]*?)\3\s*\)\s*;/g)) {
+      const source = (match[1] ?? '').replace(/\\\//g, '/')
+      const flags = match[2] ?? ''
+      const replacement = this.decodeJsString(match[4] ?? '')
+
+      value = value.replace(new RegExp(source, flags), replacement)
+    }
+
+    return value
+  }
+
   private decodeProtectedBlogspotPath(rawPath: string): string {
     try {
       let protectedPath = rawPath
         .replace(/\\\//g, '/')
-        .replace(/Q3__swREYT_/g, 'g')
+        .replace(/(?:Q3__swREYT_|fF__R8BcQ4_)/g, 'g')
         .replace(/pw_\.g28x/g, 'b')
         .replace(/d2pr\.x_27/g, 'h')
 
@@ -590,5 +616,16 @@ export class RCOStationParser {
       .replace(/&#039;/g, "'")
       .replace(/&apos;/g, "'")
       .replace(/&nbsp;/g, ' ')
+  }
+
+  private decodeJsString(value: string): string {
+    return this.decodeHtmlEntities(value)
+      .replace(/\\\//g, '/')
+      .replace(/\\'/g, "'")
+      .replace(/\\"/g, '"')
+      .replace(/\\n/g, '\n')
+      .replace(/\\r/g, '\r')
+      .replace(/\\t/g, '\t')
+      .replace(/\\\\/g, '\\')
   }
 }

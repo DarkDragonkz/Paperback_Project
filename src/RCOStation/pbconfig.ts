@@ -1,7 +1,7 @@
 import { ContentRating, SourceIntents, type ExtensionInfo } from '@paperback/types'
 
 const sourceInfo = {
-  version: '1.0.0',
+  version: '1.0.1',
   name: 'RCOStation',
   icon: 'icon.png',
   description: 'Comics e issue in inglese da RCOStation.',
