@@ -210,6 +210,15 @@ export class NineMangaParser {
     return uniqueStrings(pageUrls)
   }
 
+  parseReaderNextPageUrl(html: string, currentUrl = this.baseUrl): string | undefined {
+    const rawValue = this.decodeHtmlEntities(
+      html.match(/\bnext_page\s*=\s*["']([^"']+)["']/i)?.[1] ?? ''
+    ).trim()
+    const pageUrl = this.normalizeReaderPageUrl(rawValue, currentUrl || this.baseUrl)
+
+    return pageUrl || undefined
+  }
+
   private normalizeReaderPageUrl(rawValue: string, currentUrl = this.baseUrl): string {
     if (!rawValue) return ''
 

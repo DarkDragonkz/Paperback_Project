@@ -36,7 +36,7 @@ const HTML_CACHE_TTL_MS = 2 * 60 * 1000
 const MANGA_DATA_CACHE_TTL_MS = 5 * 60 * 1000
 const MAX_CACHE_ENTRIES = 30
 const MAX_READER_REQUESTS = 40
-const MAX_LOCALIZED_READER_REQUESTS = 80
+const MAX_LOCALIZED_READER_REQUESTS = 120
 const MAX_GATE_REDIRECTS = 5
 
 interface CacheEntry<T> {
@@ -564,24 +564,42 @@ private chapterProgressionNumber(chapter: Chapter): number {
     debugLog(`[NineManga] Localized first page images parsed: ${firstImages.length} url=${firstResponse.url}`)
     pages.push(...firstImages)
 
-    const rawPageUrls = this.parser.parseReaderPageUrls(firstResponse.body, firstResponse.url)
-    const pageUrls = uniqueStrings(rawPageUrls)
-      .map((pageUrl) => this.withReaderWarning(normalizeUrl(pageUrl, this.baseUrl())))
-      .filter((pageUrl) => Boolean(pageUrl))
-      .filter((pageUrl) => this.sourceFlowKey(pageUrl) !== firstKey)
-      .filter((pageUrl) => this.isNineMangaReaderUrl(pageUrl))
-      .filter((pageUrl) => this.localizedChapterBaseKey(pageUrl) === currentChapterBaseKey)
-      .slice(0, MAX_LOCALIZED_READER_REQUESTS - 1)
+    const pageQueue: string[] = []
+    const queuedOrVisited = new Set<string>([firstKey])
+    const enqueuePageUrl = (rawUrl: string | undefined): void => {
+      const normalizedUrl = this.withReaderWarning(normalizeUrl(rawUrl, this.baseUrl()))
+      if (!normalizedUrl || !this.isNineMangaReaderUrl(normalizedUrl)) return
+      if (this.localizedChapterBaseKey(normalizedUrl) !== currentChapterBaseKey) return
 
-    debugLog(`[NineManga] Localized reader page URLs parsed: ${rawPageUrls.length}; accepted: ${pageUrls.length}`)
+      const key = this.sourceFlowKey(normalizedUrl)
+      if (queuedOrVisited.has(key)) return
 
-    for (const pageUrl of pageUrls) {
+      queuedOrVisited.add(key)
+      pageQueue.push(normalizedUrl)
+    }
+
+    for (const pageUrl of this.parser.parseReaderPageUrls(firstResponse.body, firstResponse.url)) {
+      enqueuePageUrl(pageUrl)
+    }
+    enqueuePageUrl(this.parser.parseReaderNextPageUrl(firstResponse.body, firstResponse.url))
+
+    debugLog(`[NineManga] Localized reader queued pages: ${pageQueue.length}`)
+
+    while (pageQueue.length > 0 && state.requestCount < MAX_LOCALIZED_READER_REQUESTS) {
+      const pageUrl = pageQueue.shift()
+      if (!pageUrl) continue
+
       const pageResponse = await this.getLocalizedTascabileHtml(pageUrl, firstResponse.url, state)
       if (!pageResponse) continue
 
       const pageImages = this.parser.parseLocalizedReaderImageUrls(pageResponse.body, pageResponse.url)
       debugLog(`[NineManga] Localized reader page images parsed: ${pageImages.length} url=${pageResponse.url}`)
       pages.push(...pageImages)
+
+      for (const nextPageUrl of this.parser.parseReaderPageUrls(pageResponse.body, pageResponse.url)) {
+        enqueuePageUrl(nextPageUrl)
+      }
+      enqueuePageUrl(this.parser.parseReaderNextPageUrl(pageResponse.body, pageResponse.url))
     }
 
     return uniqueStrings(pages)
