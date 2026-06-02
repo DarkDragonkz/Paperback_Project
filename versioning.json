@@ -1,5 +1,5 @@
 {
-  "buildTime": "2026-06-02T17:40:21.457Z",
+  "buildTime": "2026-06-02T17:49:04.788Z",
   "builtWith": {
     "toolchain": "1.0.0-alpha.86",
     "types": "1.0.0-alpha.86"
@@ -13,7 +13,7 @@
       "version": "1.0.0",
       "name": "DDT Team",
       "icon": "icon.png",
-      "description": "Italian DDT Team scanlation source with catalogue, search, chapters and reader support.",
+      "description": "Manga e scanlation in italiano dal catalogo DDT Team.",
       "contentRating": "MATURE",
       "developers": [
         {
@@ -24,9 +24,9 @@
       "language": "it",
       "badges": [
         {
-          "label": "PizzaReader",
+          "label": "Scan ITA",
           "textColor": "#ffffff",
-          "backgroundColor": "#ef4444"
+          "backgroundColor": "#16a34a"
         }
       ],
       "capabilities": [
@@ -40,7 +40,7 @@
       "version": "1.0.0",
       "name": "GTO The Great Site",
       "icon": "icon.png",
-      "description": "Italian GTO The Great Site source with catalogue, search, chapters and reader support.",
+      "description": "Manga in italiano dal catalogo GTO The Great Site.",
       "contentRating": "MATURE",
       "developers": [
         {
@@ -51,9 +51,9 @@
       "language": "it",
       "badges": [
         {
-          "label": "PizzaReader",
+          "label": "Manga ITA",
           "textColor": "#ffffff",
-          "backgroundColor": "#ef4444"
+          "backgroundColor": "#2563eb"
         }
       ],
       "capabilities": [
@@ -67,7 +67,7 @@
       "version": "1.0.0",
       "name": "Hasta Team",
       "icon": "icon.png",
-      "description": "Italian Hasta Team scanlation source with catalogue, search, chapters and reader support.",
+      "description": "Manga e scanlation in italiano dal catalogo Hasta Team.",
       "contentRating": "MATURE",
       "developers": [
         {
@@ -78,9 +78,9 @@
       "language": "it",
       "badges": [
         {
-          "label": "PizzaReader",
+          "label": "Scan ITA",
           "textColor": "#ffffff",
-          "backgroundColor": "#ef4444"
+          "backgroundColor": "#16a34a"
         }
       ],
       "capabilities": [
@@ -94,7 +94,7 @@
       "version": "1.0.0",
       "name": "LupiTeam",
       "icon": "icon.png",
-      "description": "Italian LupiTeam scanlation source with catalogue, search, chapters and reader support.",
+      "description": "Manga e scanlation in italiano dal catalogo LupiTeam.",
       "contentRating": "MATURE",
       "developers": [
         {
@@ -105,9 +105,9 @@
       "language": "it",
       "badges": [
         {
-          "label": "PizzaReader",
+          "label": "Scan ITA",
           "textColor": "#ffffff",
-          "backgroundColor": "#ef4444"
+          "backgroundColor": "#16a34a"
         }
       ],
       "capabilities": [
@@ -121,7 +121,7 @@
       "version": "1.0.0",
       "name": "MangaWorld",
       "icon": "icon.png",
-      "description": "Italian MangaWorld source with catalogue, search, discover, chapters and reader support.",
+      "description": "Ampio catalogo manga in italiano da MangaWorld.",
       "contentRating": "MATURE",
       "developers": [
         {
@@ -132,9 +132,9 @@
       "language": "it",
       "badges": [
         {
-          "label": "Scan ITA",
+          "label": "Manga ITA",
           "textColor": "#ffffff",
-          "backgroundColor": "#ea4d00"
+          "backgroundColor": "#2563eb"
         }
       ],
       "capabilities": [
@@ -148,7 +148,7 @@
       "version": "1.0.0",
       "name": "NIFTeam",
       "icon": "icon.png",
-      "description": "Italian NIFTeam source with catalogue, search, chapters and reader support.",
+      "description": "Manga e scanlation in italiano dal catalogo NIFTeam.",
       "contentRating": "MATURE",
       "developers": [
         {
@@ -159,9 +159,9 @@
       "language": "it",
       "badges": [
         {
-          "label": "FoolSlide",
+          "label": "Scan ITA",
           "textColor": "#ffffff",
-          "backgroundColor": "#0f766e"
+          "backgroundColor": "#16a34a"
         }
       ],
       "capabilities": [
@@ -175,7 +175,7 @@
       "version": "1.0.40",
       "name": "NineManga",
       "icon": "icon.png",
-      "description": "Multi-language NineManga source with configurable region and dedicated reader flows.",
+      "description": "Catalogo NineManga con regioni selezionabili: English, Italiano, Español, Русский e altre.",
       "contentRating": "ADULT",
       "developers": [
         {
@@ -186,7 +186,7 @@
       "language": "en",
       "badges": [
         {
-          "label": "Multi-language",
+          "label": "Multi",
           "textColor": "#ffffff",
           "backgroundColor": "#2563eb"
         }
@@ -204,7 +204,7 @@
       "version": "1.0.0",
       "name": "Phoenix Scans",
       "icon": "icon.png",
-      "description": "Italian Phoenix Scans source with catalogue, search, chapters and reader support.",
+      "description": "Manga e scanlation in italiano dal catalogo Phoenix Scans.",
       "contentRating": "MATURE",
       "developers": [
         {
@@ -215,9 +215,9 @@
       "language": "it",
       "badges": [
         {
-          "label": "PizzaReader",
+          "label": "Scan ITA",
           "textColor": "#ffffff",
-          "backgroundColor": "#ef4444"
+          "backgroundColor": "#16a34a"
         }
       ],
       "capabilities": [
@@ -231,7 +231,7 @@
       "version": "1.0.0",
       "name": "RCOStation",
       "icon": "icon.png",
-      "description": "English comics source focused on RCOStation issues, search and reader support.",
+      "description": "Comics e issue in inglese da RCOStation.",
       "contentRating": "MATURE",
       "developers": [
         {
@@ -242,9 +242,9 @@
       "language": "en",
       "badges": [
         {
-          "label": "Comics",
+          "label": "Comics EN",
           "textColor": "#ffffff",
-          "backgroundColor": "#b91c1c"
+          "backgroundColor": "#7c3aed"
         }
       ],
       "capabilities": [
@@ -258,7 +258,7 @@
       "version": "1.0.1",
       "name": "ReadAllComics",
       "icon": "icon.png",
-      "description": "English comics source focused on ReadAllComics series, issues and reader support.",
+      "description": "Comics e issue in inglese da ReadAllComics.",
       "contentRating": "MATURE",
       "developers": [
         {
@@ -269,9 +269,9 @@
       "language": "en",
       "badges": [
         {
-          "label": "Western Comics",
+          "label": "Comics EN",
           "textColor": "#ffffff",
-          "backgroundColor": "#334155"
+          "backgroundColor": "#7c3aed"
         }
       ],
       "capabilities": [
@@ -285,7 +285,7 @@
       "version": "1.0.0",
       "name": "TuttoAnimeManga",
       "icon": "icon.png",
-      "description": "Italian TuttoAnimeManga source with catalogue, search, chapters and reader support.",
+      "description": "Manga in italiano dal catalogo TuttoAnimeManga.",
       "contentRating": "MATURE",
       "developers": [
         {
@@ -296,9 +296,9 @@
       "language": "it",
       "badges": [
         {
-          "label": "PizzaReader",
+          "label": "Manga ITA",
           "textColor": "#ffffff",
-          "backgroundColor": "#ef4444"
+          "backgroundColor": "#2563eb"
         }
       ],
       "capabilities": [
@@ -312,8 +312,8 @@
       "version": "1.0.0",
       "name": "ZeurelScan",
       "icon": "icon.png",
-      "description": "Italian ZeurelScan source with catalogue, search, chapters and reader support.",
-      "contentRating": "SAFE",
+      "description": "Manga e scanlation in italiano dal catalogo ZeurelScan.",
+      "contentRating": "MATURE",
       "developers": [
         {
           "name": "DarkDragonkz",
@@ -325,7 +325,7 @@
         {
           "label": "Scan ITA",
           "textColor": "#ffffff",
-          "backgroundColor": "#2563eb"
+          "backgroundColor": "#16a34a"
         }
       ],
       "capabilities": [
