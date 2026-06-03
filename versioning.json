@@ -1,5 +1,5 @@
 {
-  "buildTime": "2026-06-02T18:40:58.906Z",
+  "buildTime": "2026-06-03T15:20:42.306Z",
   "builtWith": {
     "toolchain": "1.0.0-alpha.86",
     "types": "1.0.0-alpha.86"
@@ -309,7 +309,7 @@
       "id": "TuttoAnimeManga"
     },
     {
-      "version": "1.0.0",
+      "version": "1.0.1",
       "name": "XoxoComics",
       "icon": "icon.png",
       "description": "Comics e issue in inglese da XoxoComics.",
