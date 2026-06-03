@@ -26,7 +26,7 @@ import { ImageRequestInterceptor } from '../common/http/imageInterceptor'
 import { resetCloudflareBypassState } from '../common/http/request'
 import { NineMangaClient } from './NineMangaClient'
 
-export const NINEMANGA_SOURCE_VERSION = '1.0.41'
+export const NINEMANGA_SOURCE_VERSION = '1.0.42'
 
 const CLOUDFLARE_COOKIE_TTL_MS = 7 * 24 * 60 * 60 * 1000
 

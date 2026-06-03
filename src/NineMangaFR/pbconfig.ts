@@ -1,7 +1,7 @@
 import { ContentRating, SourceIntents, type ExtensionInfo } from '@paperback/types'
 
 const sourceInfo = {
-  version: '1.0.41',
+  version: '1.0.42',
   name: 'NineManga Français',
   icon: 'icon.png',
   description: 'French NineManga source with localized reader support.',

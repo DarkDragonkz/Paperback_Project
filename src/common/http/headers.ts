@@ -4,6 +4,8 @@ export const MOBILE_SAFARI_USER_AGENT =
   'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1'
 export const IMAGE_ACCEPT_HEADER = 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8'
 
+let defaultUserAgent: Promise<string> | undefined
+
 export function mergeHeaders(...headers: Array<HeaderMap | undefined>): HeaderMap {
   return Object.assign({}, ...headers)
 }
@@ -17,8 +19,10 @@ export function mobileImageHeaders(referer: string): HeaderMap {
 }
 
 export async function defaultBrowserHeaders(baseUrl: string): Promise<HeaderMap> {
+  defaultUserAgent ??= Application.getDefaultUserAgent()
+
   return {
-    'user-agent': await Application.getDefaultUserAgent(),
+    'user-agent': await defaultUserAgent,
     accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
     referer: baseUrl,
   }

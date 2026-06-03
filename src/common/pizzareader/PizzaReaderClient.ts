@@ -373,6 +373,9 @@ export class PizzaReaderClient {
   }
 
   private async withRateLimit<T>(operation: () => Promise<T>): Promise<T> {
+    const delayMs = this.config.requestDelayMs ?? 0
+    if (delayMs <= 0) return operation()
+
     const previous = this.rateLimitQueue
     let release: () => void = () => {}
 
@@ -392,7 +395,6 @@ export class PizzaReaderClient {
 
   private async waitForRateLimit(): Promise<void> {
     const delayMs = this.config.requestDelayMs ?? 0
-    if (delayMs <= 0) return
 
     const elapsed = Date.now() - this.lastRequestAt
     if (elapsed < delayMs) await this.sleep(delayMs - elapsed)

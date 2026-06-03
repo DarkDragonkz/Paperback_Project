@@ -22,6 +22,7 @@ import { FoolSlideParser } from './FoolSlideParser'
 const HTML_CACHE_TTL_MS = 5 * 60 * 1000
 const MANGA_CACHE_TTL_MS = 10 * 60 * 1000
 const MAX_CACHE_ENTRIES = 30
+const THUMBNAIL_BATCH_SIZE = 6
 
 interface CacheEntry<T> {
   expiresAt: number
@@ -147,16 +148,22 @@ export class FoolSlideClient {
   private async withThumbnails(items: FoolSlideListingItem[]): Promise<FoolSlideListingItem[]> {
     const enriched: FoolSlideListingItem[] = []
 
-    for (const item of items) {
-      if (item.imageUrl) {
-        enriched.push(item)
-        continue
-      }
+    for (let index = 0; index < items.length; index += THUMBNAIL_BATCH_SIZE) {
+      const batch = items.slice(index, index + THUMBNAIL_BATCH_SIZE)
+      const batchItems = await Promise.all(
+        batch.map(async (item) => {
+          if (item.imageUrl) return item
 
-      try {
-        const data = await this.getMangaData(item.mangaId)
-        enriched.push({ ...item, imageUrl: data.imageUrl })
-      } catch {
+          try {
+            const data = await this.getMangaData(item.mangaId)
+            return { ...item, imageUrl: data.imageUrl }
+          } catch {
+            return item
+          }
+        })
+      )
+
+      for (const item of batchItems) {
         enriched.push(item)
       }
     }
@@ -280,6 +287,9 @@ export class FoolSlideClient {
   }
 
   private async withRateLimit<T>(operation: () => Promise<T>): Promise<T> {
+    const delayMs = this.config.requestDelayMs ?? 0
+    if (delayMs <= 0) return operation()
+
     const previous = this.rateLimitQueue
     let release: () => void = () => {}
 
@@ -290,9 +300,8 @@ export class FoolSlideClient {
     await previous
 
     try {
-      const delayMs = this.config.requestDelayMs ?? 0
       const elapsed = Date.now() - this.lastRequestAt
-      if (delayMs > 0 && elapsed < delayMs) await new Promise((resolve) => setTimeout(resolve, delayMs - elapsed))
+      if (elapsed < delayMs) await new Promise((resolve) => setTimeout(resolve, delayMs - elapsed))
       this.lastRequestAt = Date.now()
       return await operation()
     } finally {

@@ -18,7 +18,7 @@ import type {
 
 import { ZeurelScanClient } from './ZeurelScanClient'
 
-const SOURCE_VERSION = '1.0.0'
+const SOURCE_VERSION = '1.0.1'
 
 class ZeurelScanExtension
   implements Extension, ChapterProviding, SearchResultsProviding, DiscoverSectionProviding

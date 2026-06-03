@@ -1,7 +1,7 @@
 import { ContentRating, SourceIntents, type ExtensionInfo } from '@paperback/types'
 
 const sourceInfo = {
-  version: '1.0.0',
+  version: '1.0.1',
   name: 'GTO The Great Site',
   icon: 'icon.png',
   description: 'Italian manga source with catalog, search and reader support.',

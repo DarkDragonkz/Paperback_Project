@@ -1,6 +1,6 @@
 import { createFoolSlideExtension } from '../common/foolslide/FoolSlideExtension'
 
-const SOURCE_VERSION = '1.0.0'
+const SOURCE_VERSION = '1.0.1'
 
 export const NIFTeam = createFoolSlideExtension(
   {

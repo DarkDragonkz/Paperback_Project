@@ -20,7 +20,7 @@ import { mobileImageHeaders } from '../common/http/headers'
 import { ImageRequestInterceptor } from '../common/http/imageInterceptor'
 import { XoxoComicsClient } from './XoxoComicsClient'
 
-const SOURCE_VERSION = '1.0.5'
+const SOURCE_VERSION = '1.0.6'
 const BASE_URL = 'https://xoxocomic.com/'
 const IMAGE_HEADERS = mobileImageHeaders(BASE_URL)
 

@@ -32,6 +32,8 @@ const IMAGE_AVAILABILITY_CACHE_TTL_MS = 10 * 60 * 1000
 const MAX_CACHE_ENTRIES = 30
 const MAX_CHAPTER_LIST_PAGES = 8
 const MAX_READER_FALLBACK_PAGES = 120
+const CHAPTER_LIST_PAGE_BATCH_SIZE = 4
+const READER_FALLBACK_PAGE_BATCH_SIZE = 8
 
 const SECTIONS: XoxoComicsListingConfig[] = [
   {
@@ -201,13 +203,22 @@ export class XoxoComicsClient {
       .filter((url) => normalizeUrl(url, BASE_URL) !== normalizeUrl(response.url, BASE_URL))
       .slice(0, MAX_CHAPTER_LIST_PAGES - 1)
 
-    for (const pageUrl of chapterPageUrls) {
-      try {
-        const pageResponse = await this.getHtml(pageUrl, mangaUrl)
-        const pageData = this.parser.parseManga(pageResponse.body, data.mangaId, data.shareUrl)
-        chapters.push(...pageData.chapters)
-      } catch (error) {
-        debugLog(`[XoxoComics] Failed to load chapter page ${pageUrl}: ${String(error)}`)
+    for (let index = 0; index < chapterPageUrls.length; index += CHAPTER_LIST_PAGE_BATCH_SIZE) {
+      const batch = chapterPageUrls.slice(index, index + CHAPTER_LIST_PAGE_BATCH_SIZE)
+      const pageChapters = await Promise.all(
+        batch.map(async (pageUrl) => {
+          try {
+            const pageResponse = await this.getHtml(pageUrl, mangaUrl)
+            return this.parser.parseManga(pageResponse.body, data.mangaId, data.shareUrl).chapters
+          } catch (error) {
+            debugLog(`[XoxoComics] Failed to load chapter page ${pageUrl}: ${String(error)}`)
+            return []
+          }
+        })
+      )
+
+      for (const parsedChapters of pageChapters) {
+        chapters.push(...parsedChapters)
       }
     }
 
@@ -303,12 +314,22 @@ export class XoxoComicsClient {
       .slice(0, MAX_READER_FALLBACK_PAGES)
     const images: string[] = []
 
-    for (const pageUrl of pageUrls) {
-      try {
-        const pageResponse = await this.getHtml(pageUrl, chapterUrl)
-        images.push(...this.parser.parseIssueImages(pageResponse.body, pageResponse.url))
-      } catch (error) {
-        debugLog(`[XoxoComics] Reader page fallback failed for ${pageUrl}: ${String(error)}`)
+    for (let index = 0; index < pageUrls.length; index += READER_FALLBACK_PAGE_BATCH_SIZE) {
+      const batch = pageUrls.slice(index, index + READER_FALLBACK_PAGE_BATCH_SIZE)
+      const pageImages = await Promise.all(
+        batch.map(async (pageUrl) => {
+          try {
+            const pageResponse = await this.getHtml(pageUrl, chapterUrl)
+            return this.parser.parseIssueImages(pageResponse.body, pageResponse.url)
+          } catch (error) {
+            debugLog(`[XoxoComics] Reader page fallback failed for ${pageUrl}: ${String(error)}`)
+            return []
+          }
+        })
+      )
+
+      for (const parsedImages of pageImages) {
+        images.push(...parsedImages)
       }
     }
 
