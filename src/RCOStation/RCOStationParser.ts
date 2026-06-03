@@ -366,7 +366,7 @@ export class RCOStationParser {
 
     for (const scriptMatch of html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)) {
       const script = scriptMatch[1] ?? ''
-      for (const blockMatch of script.matchAll(/(?:^|[;\n\r])\s*pth\s*=\s*(['"])([\s\S]*?)\1\s*;([\s\S]*?)_aUeupRL\.push\(\s*pth\s*\)\s*;/g)) {
+      for (const blockMatch of script.matchAll(/(?:^|[;\n\r])\s*pth\s*=\s*(['"])([\s\S]*?)\1\s*;([\s\S]*?)[A-Za-z_$][\w$]*\.push\(\s*pth\s*\)\s*;/g)) {
         const imageUrl = this.decodeProtectedBlogspotPath(
           this.applyProtectedPathReplacements(blockMatch[2] ?? '', blockMatch[3] ?? '')
         )
@@ -526,7 +526,8 @@ export class RCOStationParser {
 
     // RCOStation sometimes exposes obfuscated script fragments which are not fully decoded.
     // If these placeholders leak into the final Blogspot URL, Blogspot returns 400.
-    if (/AdaSrTxCrmO|AxjGUdNBdnc/i.test(url)) return true
+    if (/AdaSrTxCrmO|AxjGUdNBdnc|[A-Za-z0-9]+__[A-Za-z0-9]+_/i.test(url)) return true
+    if (/={2,}(?:s0|s1600)(?:[?#]|$)/i.test(url)) return true
 
     // Real Blogger URLs use safe ASCII path tokens. Corrupted protected paths contain
     // binary/control bytes, fragments in the path, or percent-encoded mojibake/control chars.

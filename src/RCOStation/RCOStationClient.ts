@@ -310,7 +310,7 @@ export class RCOStationClient {
         headers: this.imageProbeHeaders(),
       })
       const contentType = this.headerValue(response.headers, 'content-type').toLowerCase()
-      const ok = response.status >= 200 && response.status < 400 && (!contentType || contentType.startsWith('image/'))
+      const ok = response.status >= 200 && response.status < 300 && contentType.startsWith('image/')
 
       this.rememberCache(this.imageProbeCache, imageUrl, ok, IMAGE_PROBE_CACHE_TTL_MS)
       return ok
