@@ -1,10 +1,10 @@
 import { ContentRating, SourceIntents, type ExtensionInfo } from '@paperback/types'
 
 const sourceInfo = {
-  version: '1.0.2',
-  name: 'XoxoComics',
+  version: '1.0.0',
+  name: 'WeebCentral',
   icon: 'icon.png',
-  description: 'Comics e issue in inglese da XoxoComics.',
+  description: 'Manga in inglese da WeebCentral.',
   contentRating: ContentRating.MATURE,
   developers: [
     {
@@ -15,9 +15,9 @@ const sourceInfo = {
   language: 'en',
   badges: [
     {
-      label: 'Comics EN',
+      label: 'Manga EN',
       textColor: '#ffffff',
-      backgroundColor: '#7c3aed',
+      backgroundColor: '#2563eb',
     },
   ],
   capabilities: [

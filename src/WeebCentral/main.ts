@@ -17,10 +17,10 @@ import type {
 } from '@paperback/types'
 
 import { ImageRequestInterceptor } from '../common/http/imageInterceptor'
-import { XoxoComicsClient } from './XoxoComicsClient'
+import { WeebCentralClient } from './WeebCentralClient'
 
-const SOURCE_VERSION = '1.0.2'
-const BASE_URL = 'https://xoxocomic.com/'
+const SOURCE_VERSION = '1.0.0'
+const BASE_URL = 'https://weebcentral.com/'
 const MOBILE_USER_AGENT =
   'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1'
 const IMAGE_HEADERS = {
@@ -29,17 +29,17 @@ const IMAGE_HEADERS = {
   referer: BASE_URL,
 }
 
-class XoxoComicsExtension
+class WeebCentralExtension
   implements Extension, ChapterProviding, SearchResultsProviding, DiscoverSectionProviding
 {
-  private readonly client = new XoxoComicsClient()
-  private readonly imageInterceptor = new ImageRequestInterceptor('xoxocomics-image-headers', [
-    { pattern: /^https?:\/\/(?:www\.)?xoxocomic\.com\//i, headers: IMAGE_HEADERS },
+  private readonly client = new WeebCentralClient()
+  private readonly imageInterceptor = new ImageRequestInterceptor('weebcentral-image-headers', [
+    { pattern: /^https?:\/\/(?:hot\.planeptune\.us|temp\.compsci88\.com)\//i, headers: IMAGE_HEADERS },
   ])
 
   async initialise(): Promise<void> {
     this.imageInterceptor.registerInterceptor()
-    debugLog(`[XoxoComics] Initialising source ${SOURCE_VERSION}`)
+    debugLog(`[WeebCentral] Initialising source ${SOURCE_VERSION}`)
   }
 
   async getMangaDetails(mangaId: string): Promise<SourceManga> {
@@ -76,4 +76,4 @@ class XoxoComicsExtension
   }
 }
 
-export const XoxoComics = new XoxoComicsExtension()
+export const WeebCentral = new WeebCentralExtension()

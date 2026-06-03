@@ -17,7 +17,7 @@ import type { HeaderMap } from '../common/http/headers'
 import type { PageMetadata } from '../common/models/Pagination'
 import { uniqueBy } from '../common/utils/array'
 import { normalizeUrl, pathIdFromUrl } from '../common/utils/url'
-import { getText, type TextResponse } from './XoxoComicsHttp'
+import { getText, probe, type TextResponse } from './XoxoComicsHttp'
 import type {
   XoxoComicsListingConfig,
   XoxoComicsListingItem,
@@ -30,8 +30,10 @@ const MOBILE_USER_AGENT =
   'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1'
 const HTML_CACHE_TTL_MS = 5 * 60 * 1000
 const MANGA_DATA_CACHE_TTL_MS = 10 * 60 * 1000
+const IMAGE_PROBE_CACHE_TTL_MS = 10 * 60 * 1000
 const MAX_CACHE_ENTRIES = 30
 const MAX_CHAPTER_LIST_PAGES = 8
+const IMAGE_PROBE_SAMPLE_SIZE = 3
 
 const SECTIONS: XoxoComicsListingConfig[] = [
   {
@@ -78,6 +80,7 @@ export class XoxoComicsClient {
   private readonly htmlCache = new Map<string, CacheEntry<TextResponse>>()
   private readonly htmlRequests = new Map<string, Promise<TextResponse>>()
   private readonly mangaDataCache = new Map<string, CacheEntry<XoxoComicsMangaData>>()
+  private readonly imageProbeCache = new Map<string, CacheEntry<boolean>>()
 
   async getMangaDetails(mangaId: string): Promise<SourceManga> {
     return this.parser.toSourceManga(await this.getMangaData(mangaId))
@@ -102,6 +105,13 @@ export class XoxoComicsClient {
       const fallback = await this.getHtml(chapterUrl, BASE_URL)
       const fallbackPages = this.parser.parseIssueImages(fallback.body, fallback.url)
       if (fallbackPages.length > pages.length) pages = fallbackPages
+    }
+
+    const rawPageCount = pages.length
+    pages = await this.filterInvalidImageResponses(pages, chapterUrl || response.url)
+
+    if (pages.length !== rawPageCount) {
+      debugLog(`[XoxoComics] Filtered invalid reader images: ${pages.length}/${rawPageCount}`)
     }
 
     debugLog(`[XoxoComics] Reader images returned: ${pages.length}`)
@@ -263,6 +273,61 @@ export class XoxoComicsClient {
       'accept-language': 'en-US,en;q=0.9',
       referer,
     }
+  }
+
+  private imageProbeHeaders(referer = BASE_URL): HeaderMap {
+    return {
+      'user-agent': MOBILE_USER_AGENT,
+      accept: 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8',
+      'accept-language': 'en-US,en;q=0.9',
+      referer,
+      range: 'bytes=0-15',
+    }
+  }
+
+  private async filterInvalidImageResponses(pages: string[], referer: string): Promise<string[]> {
+    if (pages.length === 0) return pages
+
+    const sample = pages.slice(0, Math.min(IMAGE_PROBE_SAMPLE_SIZE, pages.length))
+    const sampleResults = await Promise.all(sample.map((page) => this.isReadableImageResponse(page, referer)))
+    if (sampleResults.every(Boolean)) return pages
+
+    const readablePages: string[] = []
+    for (const page of pages) {
+      if (await this.isReadableImageResponse(page, referer)) readablePages.push(page)
+    }
+
+    return readablePages
+  }
+
+  private async isReadableImageResponse(url: string, referer: string): Promise<boolean> {
+    const cachedValue = this.cacheValue(this.imageProbeCache, url)
+    if (cachedValue !== undefined) return cachedValue
+
+    try {
+      const response = await probe(url, this.imageProbeHeaders(referer))
+      const contentType = this.headerValue(response.headers, 'content-type').toLowerCase()
+      const readable =
+        response.status >= 200 &&
+        response.status < 400 &&
+        !contentType.startsWith('text/html') &&
+        !contentType.includes('application/json') &&
+        !contentType.includes('application/xml')
+
+      this.rememberCache(this.imageProbeCache, url, readable, IMAGE_PROBE_CACHE_TTL_MS)
+      return readable
+    } catch (error) {
+      debugLog(`[XoxoComics] Image probe failed for ${url}: ${String(error)}`)
+      return true
+    }
+  }
+
+  private headerValue(headers: Record<string, string>, name: string): string {
+    const match = Object.entries(headers).find(
+      ([key]) => key.toLowerCase() === name.toLowerCase()
+    )
+
+    return match?.[1] ?? ''
   }
 
   private mangaUrl(mangaId: string): string {
