@@ -13,7 +13,7 @@ import {
   type SourceManga,
 } from '@paperback/types'
 
-import { MOBILE_SAFARI_USER_AGENT, type HeaderMap } from '../common/http/headers'
+import { IMAGE_ACCEPT_HEADER, MOBILE_SAFARI_USER_AGENT, type HeaderMap } from '../common/http/headers'
 import { normalizeUrl, pathIdFromUrl } from '../common/utils/url'
 import { getText, postForm, type TextResponse } from './RCOStationHttp'
 import type {
@@ -27,9 +27,11 @@ const BASE_URL = 'https://rcostation.xyz/'
 const SEARCH_URL = 'https://rcostation.xyz/Search/Comic'
 const HTML_CACHE_TTL_MS = 5 * 60 * 1000
 const COMIC_DATA_CACHE_TTL_MS = 10 * 60 * 1000
+const IMAGE_PROBE_CACHE_TTL_MS = 15 * 60 * 1000
 const MAX_CACHE_ENTRIES = 30
 const MAX_COVER_ENRICHMENT_ITEMS = 16
 const COVER_ENRICHMENT_BATCH_SIZE = 4
+const MAX_IMAGE_PROBES_PER_CANDIDATE = 80
 
 interface CacheEntry<T> {
   expiresAt: number
@@ -68,6 +70,7 @@ export class RCOStationClient {
   private readonly htmlCache = new Map<string, CacheEntry<TextResponse>>()
   private readonly htmlRequests = new Map<string, Promise<TextResponse>>()
   private readonly comicDataCache = new Map<string, CacheEntry<RCOStationComicData>>()
+  private readonly imageProbeCache = new Map<string, CacheEntry<boolean>>()
 
   async getMangaDetails(mangaId: string): Promise<SourceManga> {
     return this.parser.toSourceManga(await this.getComicData(mangaId))
@@ -217,17 +220,115 @@ export class RCOStationClient {
       this.parser.serverIssueUrl(rawUrl, 's2', 'lq'),
     ]
     const attempted = new Set<string>()
+    let bestPages: string[] = []
 
     for (const candidate of candidates) {
       if (!candidate || attempted.has(candidate)) continue
 
       attempted.add(candidate)
-      const response = await this.getHtml(candidate)
-      const pages = this.parser.parseReaderPages(response.body, response.url)
-      if (pages.length > 0) return pages
+
+      try {
+        const response = await this.getHtml(candidate)
+        const pages = this.parser.parseReaderPages(response.body, response.url)
+        if (pages.length === 0) continue
+
+        const validPages = await this.filterValidReaderImages(pages)
+        debugLog(
+          `[RCOStation] Reader candidate ${candidate} parsed=${pages.length} valid=${validPages.length}`
+        )
+
+        if (validPages.length > bestPages.length) bestPages = validPages
+        if (validPages.length === pages.length) return validPages
+      } catch (error) {
+        debugLog(`[RCOStation] Reader candidate failed ${candidate}: ${String(error)}`)
+      }
     }
 
-    return []
+    return bestPages
+  }
+
+  private async filterValidReaderImages(pages: string[]): Promise<string[]> {
+    const validPages: string[] = []
+    const limitedPages = pages.slice(0, MAX_IMAGE_PROBES_PER_CANDIDATE)
+
+    for (const page of limitedPages) {
+      const workingUrl = await this.firstWorkingImageUrl(page)
+      if (workingUrl) validPages.push(workingUrl)
+    }
+
+    return validPages
+  }
+
+  private async firstWorkingImageUrl(imageUrl: string): Promise<string> {
+    for (const candidate of this.readerImageUrlCandidates(imageUrl)) {
+      if (await this.isImageResponse(candidate)) return candidate
+    }
+
+    return ''
+  }
+
+  private readerImageUrlCandidates(imageUrl: string): string[] {
+    const candidates = [imageUrl]
+
+    for (const replacement of this.blogspotSizeFallbacks(imageUrl)) {
+      if (!candidates.includes(replacement)) candidates.push(replacement)
+    }
+
+    return candidates
+  }
+
+  private blogspotSizeFallbacks(imageUrl: string): string[] {
+    const fallbacks: string[] = []
+
+    if (/=s1600(?=[?#]|$)/i.test(imageUrl)) {
+      fallbacks.push(imageUrl.replace(/=s1600(?=[?#]|$)/i, '=s0'))
+    }
+
+    if (/=s0(?=[?#]|$)/i.test(imageUrl)) {
+      fallbacks.push(imageUrl.replace(/=s0(?=[?#]|$)/i, '=s1600'))
+    }
+
+    if (/\/s1600\//i.test(imageUrl)) {
+      fallbacks.push(imageUrl.replace(/\/s1600\//i, '/s0/'))
+    }
+
+    if (/\/s0\//i.test(imageUrl)) {
+      fallbacks.push(imageUrl.replace(/\/s0\//i, '/s1600/'))
+    }
+
+    return fallbacks
+  }
+
+  private async isImageResponse(imageUrl: string): Promise<boolean> {
+    const cached = this.cacheValue(this.imageProbeCache, imageUrl)
+    if (cached !== undefined) return cached
+
+    try {
+      const [response] = await Application.scheduleRequest({
+        url: imageUrl,
+        method: 'GET',
+        headers: this.imageProbeHeaders(),
+      })
+      const contentType = this.headerValue(response.headers, 'content-type').toLowerCase()
+      const ok = response.status >= 200 && response.status < 400 && (!contentType || contentType.startsWith('image/'))
+
+      this.rememberCache(this.imageProbeCache, imageUrl, ok, IMAGE_PROBE_CACHE_TTL_MS)
+      return ok
+    } catch (error) {
+      debugLog(`[RCOStation] Image probe failed ${imageUrl}: ${String(error)}`)
+      this.rememberCache(this.imageProbeCache, imageUrl, false, IMAGE_PROBE_CACHE_TTL_MS)
+      return false
+    }
+  }
+
+  private imageProbeHeaders(): HeaderMap {
+    return {
+      'user-agent': MOBILE_SAFARI_USER_AGENT,
+      accept: IMAGE_ACCEPT_HEADER,
+      'accept-language': 'en-US,en;q=0.9',
+      referer: BASE_URL,
+      range: 'bytes=0-0',
+    }
   }
 
   private toDiscoverItem(
@@ -350,6 +451,11 @@ export class RCOStationClient {
 
   private isUsableImageUrl(imageUrl: string | undefined): boolean {
     return /^https?:\/\//i.test(imageUrl ?? '')
+  }
+
+  private headerValue(headers: Record<string, string>, name: string): string {
+    const match = Object.entries(headers).find(([key]) => key.toLowerCase() === name.toLowerCase())
+    return match?.[1] ?? ''
   }
 
   private cacheValue<T>(cache: Map<string, CacheEntry<T>>, key: string): T | undefined {
