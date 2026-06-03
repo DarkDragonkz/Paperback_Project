@@ -1,5 +1,5 @@
 {
-  "buildTime": "2026-06-03T18:06:05.963Z",
+  "buildTime": "2026-06-03T18:28:24.955Z",
   "builtWith": {
     "toolchain": "1.0.0-alpha.86",
     "types": "1.0.0-alpha.86"
@@ -202,10 +202,10 @@
       "id": "NIFTeam"
     },
     {
-      "version": "1.0.40",
-      "name": "NineManga",
+      "version": "1.0.41",
+      "name": "NineManga English",
       "icon": "icon.png",
-      "description": "Multi-language NineManga source with configurable region and dedicated reader flows.",
+      "description": "English NineManga source with dedicated reader support.",
       "contentRating": "ADULT",
       "developers": [
         {
@@ -216,9 +216,9 @@
       "language": "en",
       "badges": [
         {
-          "label": "Multi-language",
+          "label": "English",
           "textColor": "#ffffff",
-          "backgroundColor": "#0891b2"
+          "backgroundColor": "#2563eb"
         },
         {
           "label": "Manga",
@@ -230,10 +230,207 @@
         1,
         64,
         4,
-        16,
-        32
+        16
       ],
       "id": "NineManga"
+    },
+    {
+      "version": "1.0.41",
+      "name": "NineManga Português",
+      "icon": "icon.png",
+      "description": "Brazilian Portuguese NineManga source with localized reader support.",
+      "contentRating": "ADULT",
+      "developers": [
+        {
+          "name": "DarkDragonkz",
+          "github": "DarkDragonkz"
+        }
+      ],
+      "language": "pt-BR",
+      "badges": [
+        {
+          "label": "Português",
+          "textColor": "#ffffff",
+          "backgroundColor": "#15803d"
+        },
+        {
+          "label": "Manga",
+          "textColor": "#ffffff",
+          "backgroundColor": "#7c3aed"
+        }
+      ],
+      "capabilities": [
+        1,
+        64,
+        4,
+        16
+      ],
+      "id": "NineMangaBR"
+    },
+    {
+      "version": "1.0.41",
+      "name": "NineManga Deutsch",
+      "icon": "icon.png",
+      "description": "German NineManga source with localized reader support.",
+      "contentRating": "ADULT",
+      "developers": [
+        {
+          "name": "DarkDragonkz",
+          "github": "DarkDragonkz"
+        }
+      ],
+      "language": "de",
+      "badges": [
+        {
+          "label": "Deutsch",
+          "textColor": "#ffffff",
+          "backgroundColor": "#111827"
+        },
+        {
+          "label": "Manga",
+          "textColor": "#ffffff",
+          "backgroundColor": "#7c3aed"
+        }
+      ],
+      "capabilities": [
+        1,
+        64,
+        4,
+        16
+      ],
+      "id": "NineMangaDE"
+    },
+    {
+      "version": "1.0.41",
+      "name": "NineManga Español",
+      "icon": "icon.png",
+      "description": "Spanish NineManga source with dedicated reader support.",
+      "contentRating": "ADULT",
+      "developers": [
+        {
+          "name": "DarkDragonkz",
+          "github": "DarkDragonkz"
+        }
+      ],
+      "language": "es",
+      "badges": [
+        {
+          "label": "Español",
+          "textColor": "#ffffff",
+          "backgroundColor": "#dc2626"
+        },
+        {
+          "label": "Manga",
+          "textColor": "#ffffff",
+          "backgroundColor": "#7c3aed"
+        }
+      ],
+      "capabilities": [
+        1,
+        64,
+        4,
+        16
+      ],
+      "id": "NineMangaES"
+    },
+    {
+      "version": "1.0.41",
+      "name": "NineManga Français",
+      "icon": "icon.png",
+      "description": "French NineManga source with localized reader support.",
+      "contentRating": "ADULT",
+      "developers": [
+        {
+          "name": "DarkDragonkz",
+          "github": "DarkDragonkz"
+        }
+      ],
+      "language": "fr",
+      "badges": [
+        {
+          "label": "Français",
+          "textColor": "#ffffff",
+          "backgroundColor": "#2563eb"
+        },
+        {
+          "label": "Manga",
+          "textColor": "#ffffff",
+          "backgroundColor": "#7c3aed"
+        }
+      ],
+      "capabilities": [
+        1,
+        64,
+        4,
+        16
+      ],
+      "id": "NineMangaFR"
+    },
+    {
+      "version": "1.0.41",
+      "name": "NineManga Italiano",
+      "icon": "icon.png",
+      "description": "Italian NineManga source with localized reader support.",
+      "contentRating": "ADULT",
+      "developers": [
+        {
+          "name": "DarkDragonkz",
+          "github": "DarkDragonkz"
+        }
+      ],
+      "language": "it",
+      "badges": [
+        {
+          "label": "Italiano",
+          "textColor": "#ffffff",
+          "backgroundColor": "#16a34a"
+        },
+        {
+          "label": "Manga",
+          "textColor": "#ffffff",
+          "backgroundColor": "#7c3aed"
+        }
+      ],
+      "capabilities": [
+        1,
+        64,
+        4,
+        16
+      ],
+      "id": "NineMangaIT"
+    },
+    {
+      "version": "1.0.41",
+      "name": "NineManga Русский",
+      "icon": "icon.png",
+      "description": "Russian NineManga source with dedicated reader support.",
+      "contentRating": "ADULT",
+      "developers": [
+        {
+          "name": "DarkDragonkz",
+          "github": "DarkDragonkz"
+        }
+      ],
+      "language": "ru",
+      "badges": [
+        {
+          "label": "Русский",
+          "textColor": "#ffffff",
+          "backgroundColor": "#1d4ed8"
+        },
+        {
+          "label": "Manga",
+          "textColor": "#ffffff",
+          "backgroundColor": "#7c3aed"
+        }
+      ],
+      "capabilities": [
+        1,
+        64,
+        4,
+        16
+      ],
+      "id": "NineMangaRU"
     },
     {
       "version": "1.0.0",
