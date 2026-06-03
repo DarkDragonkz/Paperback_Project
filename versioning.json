@@ -1,5 +1,5 @@
 {
-  "buildTime": "2026-06-03T21:22:57.448Z",
+  "buildTime": "2026-06-03T21:33:19.539Z",
   "builtWith": {
     "toolchain": "1.0.0-alpha.86",
     "types": "1.0.0-alpha.86"
@@ -10,7 +10,7 @@
   },
   "sources": [
     {
-      "version": "1.0.0",
+      "version": "1.0.1",
       "name": "DDT Team",
       "icon": "icon.png",
       "description": "Italian scanlation source with catalog, search and reader support.",
@@ -42,7 +42,7 @@
       "id": "DDTTeam"
     },
     {
-      "version": "1.0.0",
+      "version": "1.0.1",
       "name": "GTO The Great Site",
       "icon": "icon.png",
       "description": "Italian manga source with catalog, search and reader support.",
@@ -74,7 +74,7 @@
       "id": "GTO"
     },
     {
-      "version": "1.0.0",
+      "version": "1.0.1",
       "name": "Hasta Team",
       "icon": "icon.png",
       "description": "Italian scanlation source with catalog, search and reader support.",
@@ -106,7 +106,7 @@
       "id": "HastaTeam"
     },
     {
-      "version": "1.0.0",
+      "version": "1.0.1",
       "name": "LupiTeam",
       "icon": "icon.png",
       "description": "Italian scanlation source with catalog, search and reader support.",
@@ -170,7 +170,7 @@
       "id": "MangaWorld"
     },
     {
-      "version": "1.0.0",
+      "version": "1.0.1",
       "name": "NIFTeam",
       "icon": "icon.png",
       "description": "Italian scanlation source with catalog, search and reader support.",
@@ -202,7 +202,7 @@
       "id": "NIFTeam"
     },
     {
-      "version": "1.0.41",
+      "version": "1.0.42",
       "name": "NineManga English",
       "icon": "icon.png",
       "description": "English NineManga source with dedicated reader support.",
@@ -235,7 +235,7 @@
       "id": "NineManga"
     },
     {
-      "version": "1.0.41",
+      "version": "1.0.42",
       "name": "NineManga Português",
       "icon": "icon.png",
       "description": "Brazilian Portuguese NineManga source with localized reader support.",
@@ -268,7 +268,7 @@
       "id": "NineMangaBR"
     },
     {
-      "version": "1.0.41",
+      "version": "1.0.42",
       "name": "NineManga Deutsch",
       "icon": "icon.png",
       "description": "German NineManga source with localized reader support.",
@@ -301,7 +301,7 @@
       "id": "NineMangaDE"
     },
     {
-      "version": "1.0.41",
+      "version": "1.0.42",
       "name": "NineManga Español",
       "icon": "icon.png",
       "description": "Spanish NineManga source with dedicated reader support.",
@@ -334,7 +334,7 @@
       "id": "NineMangaES"
     },
     {
-      "version": "1.0.41",
+      "version": "1.0.42",
       "name": "NineManga Français",
       "icon": "icon.png",
       "description": "French NineManga source with localized reader support.",
@@ -367,7 +367,7 @@
       "id": "NineMangaFR"
     },
     {
-      "version": "1.0.41",
+      "version": "1.0.42",
       "name": "NineManga Italiano",
       "icon": "icon.png",
       "description": "Italian NineManga source with localized reader support.",
@@ -400,7 +400,7 @@
       "id": "NineMangaIT"
     },
     {
-      "version": "1.0.41",
+      "version": "1.0.42",
       "name": "NineManga Русский",
       "icon": "icon.png",
       "description": "Russian NineManga source with dedicated reader support.",
@@ -433,7 +433,7 @@
       "id": "NineMangaRU"
     },
     {
-      "version": "1.0.0",
+      "version": "1.0.1",
       "name": "Phoenix Scans",
       "icon": "icon.png",
       "description": "Italian scanlation source with catalog, search and reader support.",
@@ -529,7 +529,7 @@
       "id": "ReadAllComics"
     },
     {
-      "version": "1.0.0",
+      "version": "1.0.1",
       "name": "TuttoAnimeManga",
       "icon": "icon.png",
       "description": "Italian manga source with catalog, search and reader support.",
@@ -593,7 +593,7 @@
       "id": "WeebCentral"
     },
     {
-      "version": "1.0.5",
+      "version": "1.0.6",
       "name": "XoxoComics",
       "icon": "icon.png",
       "description": "English comics source with discover, search and issue reader support.",
@@ -625,7 +625,7 @@
       "id": "XoxoComics"
     },
     {
-      "version": "1.0.0",
+      "version": "1.0.1",
       "name": "ZeurelScan",
       "icon": "icon.png",
       "description": "Italian scanlation source with catalog, search and reader support.",
