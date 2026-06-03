@@ -2,9 +2,9 @@ import { ContentRating, SourceIntents, type ExtensionInfo } from '@paperback/typ
 
 const sourceInfo = {
   version: '1.0.41',
-  name: 'NineManga English',
+  name: 'NineManga Italiano',
   icon: 'icon.png',
-  description: 'English NineManga source with dedicated reader support.',
+  description: 'Italian NineManga source with localized reader support.',
   contentRating: ContentRating.ADULT,
   developers: [
     {
@@ -12,12 +12,12 @@ const sourceInfo = {
       github: 'DarkDragonkz',
     },
   ],
-  language: 'en',
+  language: 'it',
   badges: [
     {
-      label: 'English',
+      label: 'Italiano',
       textColor: '#ffffff',
-      backgroundColor: '#2563eb',
+      backgroundColor: '#16a34a',
     },
     {
       label: 'Manga',
