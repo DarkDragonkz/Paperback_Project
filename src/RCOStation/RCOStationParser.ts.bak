@@ -1,4 +1,4 @@
-﻿import {
+import {
   ContentRating,
   type Chapter,
   type SearchResultItem,
@@ -348,6 +348,9 @@ export class RCOStationParser {
 
   private parseInlineReaderImageUrls(html: string): string[] {
     const decodedHtml = this.decodeHtmlEntities(html)
+    const protectedImages = this.parseProtectedReaderImageUrls(decodedHtml)
+    if (protectedImages.length > 0) return protectedImages
+
     const images: string[] = []
 
     for (const match of decodedHtml.matchAll(/https?:\\?\/\\?\/[^"'<>\s]+(?:bp\.blogspot\.com|blogspot\.com|blogger\.googleusercontent\.com)[^"'<>\s]+/gi)) {
@@ -355,10 +358,7 @@ export class RCOStationParser {
       if (this.isValidReaderImage(imageUrl)) images.push(imageUrl)
     }
 
-    const directImages = uniqueStrings(images)
-    if (directImages.length > 0) return directImages
-
-    return this.parseProtectedReaderImageUrls(decodedHtml)
+    return uniqueStrings(images)
   }
 
   private parseProtectedReaderImageUrls(html: string): string[] {
@@ -508,7 +508,6 @@ export class RCOStationParser {
 
   private isValidReaderImage(url: string): boolean {
     if (!url || BAD_RESOURCE_PATTERN.test(url)) return false
-    if (this.isMalformedBlogspotUrl(url)) return false
 
     const host = this.hostFromUrl(url)
     return (
@@ -516,25 +515,6 @@ export class RCOStationParser {
       host.includes('blogspot.com') ||
       host.includes('blogger.googleusercontent.com')
     )
-  }
-
-  private isMalformedBlogspotUrl(url: string): boolean {
-    if (!/^https?:\/\//i.test(url)) return true
-
-    const path = this.pathFromUrl(url)
-    if (!path || path === '/') return true
-
-    // RCOStation sometimes exposes obfuscated script fragments which are not fully decoded.
-    // If these placeholders leak into the final Blogspot URL, Blogspot returns 400.
-    if (/AdaSrTxCrmO|AxjGUdNBdnc/i.test(url)) return true
-
-    // Real Blogger URLs use safe ASCII path tokens. Corrupted protected paths contain
-    // binary/control bytes, fragments in the path, or percent-encoded mojibake/control chars.
-    if (/[#\u0000-\u001f\u007f]/.test(path)) return true
-    if (/%(?:00|03|04|05|06|07|08|09|0a|0d|10|12|13|14|15|16|17|1f|7f|c2|c3)/i.test(path)) return true
-    if (!/=(?:s0|s1600)(?:[?#]|$)/i.test(url)) return true
-
-    return false
   }
 
   private parseDate(value: string): Date | undefined {
@@ -649,4 +629,3 @@ export class RCOStationParser {
       .replace(/\\\\/g, '\\')
   }
 }
-
