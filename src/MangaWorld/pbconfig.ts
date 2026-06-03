@@ -4,7 +4,7 @@ const sourceInfo = {
   version: '1.0.0',
   name: 'MangaWorld',
   icon: 'icon.png',
-  description: 'Ampio catalogo manga in italiano da MangaWorld.',
+  description: 'Italian manga source with a modern catalog, chapters and reader support.',
   contentRating: ContentRating.MATURE,
   developers: [
     {
@@ -15,9 +15,14 @@ const sourceInfo = {
   language: 'it',
   badges: [
     {
-      label: 'Manga ITA',
+      label: 'Italian',
       textColor: '#ffffff',
       backgroundColor: '#2563eb',
+    },
+    {
+      label: 'Manga',
+      textColor: '#ffffff',
+      backgroundColor: '#7c3aed',
     },
   ],
   capabilities: [

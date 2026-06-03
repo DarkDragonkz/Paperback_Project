@@ -4,7 +4,7 @@ const sourceInfo = {
   version: '1.0.0',
   name: 'GTO The Great Site',
   icon: 'icon.png',
-  description: 'Manga in italiano dal catalogo GTO The Great Site.',
+  description: 'Italian manga source with catalog, search and reader support.',
   contentRating: ContentRating.MATURE,
   developers: [
     {
@@ -15,9 +15,14 @@ const sourceInfo = {
   language: 'it',
   badges: [
     {
-      label: 'Manga ITA',
+      label: 'Italian',
       textColor: '#ffffff',
       backgroundColor: '#2563eb',
+    },
+    {
+      label: 'Manga',
+      textColor: '#ffffff',
+      backgroundColor: '#7c3aed',
     },
   ],
   capabilities: [

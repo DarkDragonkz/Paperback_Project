@@ -21,8 +21,12 @@ export class CloudflareBypassInProgressError extends Error {
   }
 }
 
-export async function getText(url: string, headers?: HeaderMap): Promise<TextResponse> {
-  return getTextWithRedirects(url, headers, 0)
+export async function getText(
+  url: string,
+  headers?: HeaderMap,
+  logPrefix = 'HTTP'
+): Promise<TextResponse> {
+  return getTextWithRedirects(url, headers, 0, logPrefix)
 }
 
 export async function postText(
@@ -49,7 +53,8 @@ export async function postText(
 async function getTextWithRedirects(
   url: string,
   headers: HeaderMap | undefined,
-  redirectCount: number
+  redirectCount: number,
+  logPrefix: string
 ): Promise<TextResponse> {
   const request: Request = {
     url,
@@ -61,14 +66,14 @@ async function getTextWithRedirects(
   const body = Application.arrayBufferToUTF8String(data)
 
   if (isCloudflareChallenge(response, body)) {
-    debugLog(`[NineManga] Cloudflare challenge detected: ${response.status} ${request.url}`)
+    debugLog(`[${logPrefix}] Cloudflare challenge detected: ${response.status} ${request.url}`)
     throwCloudflareError(request)
   }
 
   const redirectUrl = redirectLocation(response)
   if (redirectUrl && redirectCount < MAX_REDIRECTS) {
     const nextUrl = normalizeUrl(redirectUrl, response.url || request.url)
-    debugLog(`[NineManga] Following redirect ${response.status}: ${nextUrl}`)
+    debugLog(`[${logPrefix}] Following redirect ${response.status}: ${nextUrl}`)
 
     return getTextWithRedirects(
       nextUrl,
@@ -76,7 +81,8 @@ async function getTextWithRedirects(
         ...headers,
         referer: response.url || request.url,
       },
-      redirectCount + 1
+      redirectCount + 1,
+      logPrefix
     )
   }
 
@@ -87,8 +93,12 @@ async function getTextWithRedirects(
   }
 }
 
-export async function getJson<T>(url: string, headers?: HeaderMap): Promise<T> {
-  const response = await getText(url, headers)
+export async function getJson<T>(
+  url: string,
+  headers?: HeaderMap,
+  logPrefix = 'HTTP'
+): Promise<T> {
+  const response = await getText(url, headers, logPrefix)
   return JSON.parse(response.body) as T
 }
 

@@ -82,35 +82,35 @@ interface FinanceRedirectInfo {
 const SECTIONS: NineMangaListingConfig[] = [
   {
     id: 'latest',
-    title: 'Latest Updates',
+    title: '📚 Latest Updates',
     path: '/list/New-Update/',
     ajaxPrefix: '/ajax/lastest/page-',
     includeChapterUpdates: true,
   },
   {
     id: 'hot',
-    title: 'Hot Manga',
+    title: '🔥 Popular Manga',
     path: '/list/Hot-Book/',
     ajaxPrefix: '/ajax/hot_manga/page-',
     includeChapterUpdates: false,
   },
   {
     id: 'new',
-    title: 'New Manga',
+    title: '🆕 New Manga',
     path: '/list/New-Book/',
     ajaxPrefix: '/ajax/new_manga/page-',
     includeChapterUpdates: false,
   },
   {
     id: 'completed',
-    title: 'Completed',
+    title: '✅ Completed',
     path: '/category/completed.html',
     ajaxPrefix: '/ajax/category/category-completed-page-',
     includeChapterUpdates: false,
   },
   {
     id: 'updated',
-    title: 'Updated Directory',
+    title: '📖 Updated Directory',
     path: '/category/updated.html',
     ajaxPrefix: '/ajax/category/category-updated-page-',
     includeChapterUpdates: false,
@@ -212,14 +212,14 @@ private chapterProgressionNumber(chapter: Chapter): number {
 
     const rawChapterUrl = this.resolveReaderChapterUrl(preparedChapter)
     const chapterUrl = this.withReaderWarning(rawChapterUrl)
-    if (!chapterUrl) throw new Error('Invalid NineManga chapter URL')
+    if (!chapterUrl) throw new Error('This NineManga chapter URL is invalid.')
 
     const pages = await this.resolveReaderImages(preparedChapter, chapterUrl)
 
     const uniquePages = uniqueStrings(pages)
     debugLog(`[NineManga] Reader images returned: ${uniquePages.length}`)
     if (uniquePages.length === 0) {
-      throw new Error('NineManga reader: no readable images found. Page may require WebView/Cloudflare session.')
+      throw new Error('No readable pages were found. This chapter may require a refreshed Cloudflare session.')
     }
 
     return {
@@ -431,7 +431,7 @@ private chapterProgressionNumber(chapter: Chapter): number {
     }
 
     if (state.gateFallbackAttempted && !state.gateCandidateUrlsFound) {
-      throw new Error('NineManga reader: external gate did not expose readable source links. WebView interaction may be required.')
+      throw new Error('NineManga could not unlock readable source links. WebView interaction may be required.')
     }
 
     return []
@@ -729,15 +729,15 @@ private chapterProgressionNumber(chapter: Chapter): number {
             this.logExtractedImages(alternatePages)
             if (alternatePages.length > 0) return alternatePages
 
-            throw new Error('NineManga reader: no readable images found after gate fallback.')
+            throw new Error('No readable pages were found after opening the reader gate.')
           }
         }
 
         if (state.financeReaderInfoDetected) {
-          throw new Error('NineManga reader: FinanceMasterPro reached but reader markers are missing after applying dynamic gate cookie.')
+          throw new Error('The Finance reader opened, but no readable page markers were found.')
         }
 
-        throw new Error('NineManga reader: FinanceMasterPro reached without reader markers. Gate context/referrer may be missing.')
+        throw new Error('The Finance reader opened without readable page markers. The gate session may need to be refreshed.')
       }
 
       debugLog(`[NineManga] External reader detected: ${response.url}`)
@@ -746,7 +746,7 @@ private chapterProgressionNumber(chapter: Chapter): number {
       this.logExtractedImages(pages)
       if (pages.length > 0) return pages
 
-      throw new Error('NineManga reader: no readable images found after gate fallback.')
+      throw new Error('No readable pages were found after opening the reader gate.')
     }
 
     const directImages = this.config.flowType === 'localized-tascabile'

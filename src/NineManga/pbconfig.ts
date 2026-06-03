@@ -4,8 +4,7 @@ const sourceInfo = {
   version: '1.0.40',
   name: 'NineManga',
   icon: 'icon.png',
-  description:
-    'Catalogo NineManga con regioni selezionabili: English, Italiano, Español, Русский e altre.',
+  description: 'Multi-language NineManga source with configurable region and dedicated reader flows.',
   contentRating: ContentRating.ADULT,
   developers: [
     {
@@ -16,9 +15,14 @@ const sourceInfo = {
   language: 'en',
   badges: [
     {
-      label: 'Multi',
+      label: 'Multi-language',
       textColor: '#ffffff',
-      backgroundColor: '#2563eb',
+      backgroundColor: '#0891b2',
+    },
+    {
+      label: 'Manga',
+      textColor: '#ffffff',
+      backgroundColor: '#7c3aed',
     },
   ],
   capabilities: [

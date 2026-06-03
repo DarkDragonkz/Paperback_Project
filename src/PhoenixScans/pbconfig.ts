@@ -4,7 +4,7 @@ const sourceInfo = {
   version: '1.0.0',
   name: 'Phoenix Scans',
   icon: 'icon.png',
-  description: 'Manga e scanlation in italiano dal catalogo Phoenix Scans.',
+  description: 'Italian scanlation source with catalog, search and reader support.',
   contentRating: ContentRating.MATURE,
   developers: [
     {
@@ -15,7 +15,12 @@ const sourceInfo = {
   language: 'it',
   badges: [
     {
-      label: 'Scan ITA',
+      label: 'Italian',
+      textColor: '#ffffff',
+      backgroundColor: '#2563eb',
+    },
+    {
+      label: 'Scanlation',
       textColor: '#ffffff',
       backgroundColor: '#16a34a',
     },

@@ -13,7 +13,7 @@ import {
   type SourceManga,
 } from '@paperback/types'
 
-import type { HeaderMap } from '../common/http/headers'
+import { MOBILE_SAFARI_USER_AGENT, type HeaderMap } from '../common/http/headers'
 import type { PageMetadata } from '../common/models/Pagination'
 import { uniqueBy } from '../common/utils/array'
 import { normalizeUrl, pathIdFromUrl } from '../common/utils/url'
@@ -26,8 +26,6 @@ import type {
 import { XoxoComicsParser } from './XoxoComicsParser'
 
 const BASE_URL = 'https://xoxocomic.com/'
-const MOBILE_USER_AGENT =
-  'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1'
 const HTML_CACHE_TTL_MS = 5 * 60 * 1000
 const MANGA_DATA_CACHE_TTL_MS = 10 * 60 * 1000
 const IMAGE_AVAILABILITY_CACHE_TTL_MS = 10 * 60 * 1000
@@ -38,7 +36,7 @@ const MAX_READER_FALLBACK_PAGES = 120
 const SECTIONS: XoxoComicsListingConfig[] = [
   {
     id: 'trending',
-    title: 'Trending Comics',
+    title: '🔥 Trending Comics',
     url: BASE_URL,
     itemSelector: '.items-slide .item',
     includeChapterUpdates: false,
@@ -46,7 +44,7 @@ const SECTIONS: XoxoComicsListingConfig[] = [
   },
   {
     id: 'latest',
-    title: 'Latest Updates',
+    title: '📚 Latest Updates',
     url: BASE_URL,
     itemSelector: '.items .row > .item',
     includeChapterUpdates: true,
@@ -54,7 +52,7 @@ const SECTIONS: XoxoComicsListingConfig[] = [
   },
   {
     id: 'new',
-    title: 'New Comics',
+    title: '🆕 New Comics',
     url: '/new-comic',
     itemSelector: '.items .row > .item',
     includeChapterUpdates: true,
@@ -62,7 +60,7 @@ const SECTIONS: XoxoComicsListingConfig[] = [
   },
   {
     id: 'popular',
-    title: 'Popular Comics',
+    title: '⭐ Popular Comics',
     url: '/popular-comic',
     itemSelector: '.items .row > .item',
     includeChapterUpdates: false,
@@ -106,7 +104,7 @@ export class XoxoComicsClient {
         const allImages = this.parser.parseIssueImages(allResponse.body, allResponse.url)
         if (allImages.length > 0) {
           if (!(await this.firstReaderImageIsAvailable(allImages[0]))) {
-            throw new Error('XoxoComics reader: image host returned HTML for this issue')
+            throw new Error('The image host returned HTML instead of an image for this issue.')
           }
 
           pages = allImages
@@ -123,9 +121,9 @@ export class XoxoComicsClient {
     }
 
     debugLog(`[XoxoComics] Reader images returned: ${pages.length}`)
-    if (pages.length === 0) throw new Error('No readable comic pages found for this chapter')
+    if (pages.length === 0) throw new Error('No readable pages were found for this issue.')
     if (!(await this.firstReaderImageIsAvailable(pages[0]))) {
-      throw new Error('XoxoComics reader: image host returned HTML for this issue')
+      throw new Error('The image host returned HTML instead of an image for this issue.')
     }
 
     return {
@@ -288,7 +286,7 @@ export class XoxoComicsClient {
         const allImages = this.parser.parseIssueImages(allResponse.body, allResponse.url)
         if (allImages.length > 0) {
           if (!(await this.firstReaderImageIsAvailable(allImages[0]))) {
-            throw new Error('XoxoComics reader: image host returned HTML for this issue')
+            throw new Error('The image host returned HTML instead of an image for this issue.')
           }
 
           return allImages
@@ -319,7 +317,7 @@ export class XoxoComicsClient {
 
   private headers(referer = BASE_URL): HeaderMap {
     return {
-      'user-agent': MOBILE_USER_AGENT,
+      'user-agent': MOBILE_SAFARI_USER_AGENT,
       accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
       'accept-language': 'en-US,en;q=0.9',
       referer,
@@ -328,7 +326,7 @@ export class XoxoComicsClient {
 
   private imageHeaders(): HeaderMap {
     return {
-      'user-agent': MOBILE_USER_AGENT,
+      'user-agent': MOBILE_SAFARI_USER_AGENT,
       accept: 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
       'accept-language': 'it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7',
       'cache-control': 'no-cache',
@@ -397,13 +395,13 @@ export class XoxoComicsClient {
   private sectionSubtitle(sectionId: string): string {
     switch (sectionId) {
       case 'trending':
-        return 'Comics in evidenza'
+        return 'Homepage comics in focus'
       case 'latest':
-        return 'Ultimi issue aggiunti'
+        return 'Newest issue releases'
       case 'new':
-        return 'Nuove serie'
+        return 'Newly added comic series'
       case 'popular':
-        return 'Serie popolari'
+        return 'Popular comic series'
       default:
         return ''
     }

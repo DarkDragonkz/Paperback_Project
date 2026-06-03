@@ -4,7 +4,7 @@ const sourceInfo = {
   version: '1.0.5',
   name: 'XoxoComics',
   icon: 'icon.png',
-  description: 'Comics e issue in inglese da XoxoComics.',
+  description: 'English comics source with discover, search and issue reader support.',
   contentRating: ContentRating.MATURE,
   developers: [
     {
@@ -15,7 +15,12 @@ const sourceInfo = {
   language: 'en',
   badges: [
     {
-      label: 'Comics EN',
+      label: 'English',
+      textColor: '#ffffff',
+      backgroundColor: '#2563eb',
+    },
+    {
+      label: 'Comics',
       textColor: '#ffffff',
       backgroundColor: '#7c3aed',
     },

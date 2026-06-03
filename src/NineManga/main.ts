@@ -22,6 +22,7 @@ import type {
   SourceManga,
 } from '@paperback/types'
 
+import { IMAGE_ACCEPT_HEADER, MOBILE_SAFARI_USER_AGENT } from '../common/http/headers'
 import { ImageRequestInterceptor } from '../common/http/imageInterceptor'
 import { resetCloudflareBypassState } from '../common/http/request'
 import { NineMangaClient } from './NineMangaClient'
@@ -32,12 +33,10 @@ import {
 
 const SOURCE_VERSION = '1.0.40'
 const CLOUDFLARE_COOKIE_TTL_MS = 7 * 24 * 60 * 60 * 1000
-const MOBILE_USER_AGENT =
-  'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1'
 
 const DEFAULT_IMAGE_HEADERS = {
-  'user-agent': MOBILE_USER_AGENT,
-  accept: 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8',
+  'user-agent': MOBILE_SAFARI_USER_AGENT,
+  accept: IMAGE_ACCEPT_HEADER,
 }
 
 class NineMangaExtension

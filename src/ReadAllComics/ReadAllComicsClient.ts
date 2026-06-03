@@ -13,7 +13,7 @@ import {
   type SourceManga,
 } from '@paperback/types'
 
-import type { HeaderMap } from '../common/http/headers'
+import { MOBILE_SAFARI_USER_AGENT, type HeaderMap } from '../common/http/headers'
 import type { PageMetadata } from '../common/models/Pagination'
 import { normalizeUrl, pathIdFromUrl } from '../common/utils/url'
 import { getText, postForm, type TextResponse } from './ReadAllComicsHttp'
@@ -26,8 +26,6 @@ import { ReadAllComicsParser } from './ReadAllComicsParser'
 
 const BASE_URL = 'https://readallcomics.com/'
 const AJAX_URL = 'https://readallcomics.com/wp-admin/admin-ajax.php'
-const MOBILE_USER_AGENT =
-  'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1'
 const HTML_CACHE_TTL_MS = 5 * 60 * 1000
 const MANGA_DATA_CACHE_TTL_MS = 10 * 60 * 1000
 const MAX_CACHE_ENTRIES = 30
@@ -35,12 +33,12 @@ const MAX_CACHE_ENTRIES = 30
 const SECTIONS: ReadAllComicsListingConfig[] = [
   {
     id: 'featured',
-    title: 'Featured Series',
+    title: '⭐ Featured Series',
     includeChapterUpdates: false,
   },
   {
     id: 'latest',
-    title: 'Latest Updates',
+    title: '📚 Latest Updates',
     includeChapterUpdates: true,
   },
 ]
@@ -75,7 +73,7 @@ export class ReadAllComicsClient {
     const pages = this.parser.parseIssueImages(response.body, response.url)
 
     debugLog(`[ReadAllComics] Reader images returned: ${pages.length}`)
-    if (pages.length === 0) throw new Error('No readable comic pages found for this chapter')
+    if (pages.length === 0) throw new Error('No readable pages were found for this issue.')
 
     return {
       id: chapter.chapterId,
@@ -276,7 +274,7 @@ export class ReadAllComicsClient {
 
   private headers(referer = BASE_URL): HeaderMap {
     return {
-      'user-agent': MOBILE_USER_AGENT,
+      'user-agent': MOBILE_SAFARI_USER_AGENT,
       accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
       'accept-language': 'en-US,en;q=0.9',
       referer,

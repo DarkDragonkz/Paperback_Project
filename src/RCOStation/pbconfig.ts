@@ -4,7 +4,7 @@ const sourceInfo = {
   version: '1.0.1',
   name: 'RCOStation',
   icon: 'icon.png',
-  description: 'Comics e issue in inglese da RCOStation.',
+  description: 'ReadComicOnline-style comics source for English-language comics and issues.',
   contentRating: ContentRating.MATURE,
   developers: [
     {
@@ -15,7 +15,12 @@ const sourceInfo = {
   language: 'en',
   badges: [
     {
-      label: 'Comics EN',
+      label: 'English',
+      textColor: '#ffffff',
+      backgroundColor: '#2563eb',
+    },
+    {
+      label: 'Comics',
       textColor: '#ffffff',
       backgroundColor: '#7c3aed',
     },

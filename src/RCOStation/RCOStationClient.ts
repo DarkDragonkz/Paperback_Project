@@ -13,7 +13,7 @@ import {
   type SourceManga,
 } from '@paperback/types'
 
-import type { HeaderMap } from '../common/http/headers'
+import { MOBILE_SAFARI_USER_AGENT, type HeaderMap } from '../common/http/headers'
 import { normalizeUrl, pathIdFromUrl } from '../common/utils/url'
 import { getText, postForm, type TextResponse } from './RCOStationHttp'
 import type {
@@ -25,8 +25,6 @@ import { RCOStationParser } from './RCOStationParser'
 
 const BASE_URL = 'https://rcostation.xyz/'
 const SEARCH_URL = 'https://rcostation.xyz/Search/Comic'
-const MOBILE_USER_AGENT =
-  'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1'
 const HTML_CACHE_TTL_MS = 5 * 60 * 1000
 const COMIC_DATA_CACHE_TTL_MS = 10 * 60 * 1000
 const MAX_CACHE_ENTRIES = 30
@@ -41,25 +39,25 @@ interface CacheEntry<T> {
 const SECTIONS: RCOStationListingConfig[] = [
   {
     id: 'featured',
-    title: 'Featured Comics',
+    title: '⭐ Featured Comics',
     heading: 'New comic',
     includeChapterUpdates: false,
   },
   {
     id: 'latest',
-    title: 'Latest update',
+    title: '📚 Latest Updates',
     heading: 'Latest update',
     includeChapterUpdates: true,
   },
   {
     id: 'new',
-    title: 'New comic',
+    title: '🆕 New Comics',
     heading: 'New comic',
     includeChapterUpdates: false,
   },
   {
     id: 'popular',
-    title: 'Most popular',
+    title: '🔥 Popular Comics',
     heading: 'Most popular',
     includeChapterUpdates: false,
   },
@@ -89,7 +87,7 @@ export class RCOStationClient {
     const pages = await this.getReaderPages(rawUrl)
 
     debugLog(`[RCOStation] Reader images returned: ${pages.length}`)
-    if (pages.length === 0) throw new Error('No readable pages found for this RCOStation issue')
+    if (pages.length === 0) throw new Error('No readable pages were found for this issue.')
 
     return {
       id: chapter.chapterId,
@@ -279,7 +277,7 @@ export class RCOStationClient {
   private sectionSubtitle(sectionId: string): string {
     switch (sectionId) {
       case 'featured':
-        return 'New comics with cover art'
+        return 'Homepage picks with cover art'
       case 'latest':
         return 'Fresh issue releases'
       case 'new':
@@ -339,7 +337,7 @@ export class RCOStationClient {
 
   private headers(referer = BASE_URL): HeaderMap {
     return {
-      'user-agent': MOBILE_USER_AGENT,
+      'user-agent': MOBILE_SAFARI_USER_AGENT,
       accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
       'accept-language': 'en-US,en;q=0.9',
       referer,

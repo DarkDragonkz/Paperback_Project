@@ -13,7 +13,7 @@ import {
   type SourceManga,
 } from '@paperback/types'
 
-import type { HeaderMap } from '../common/http/headers'
+import { MOBILE_SAFARI_USER_AGENT, type HeaderMap } from '../common/http/headers'
 import { normalizeUrl, pathIdFromUrl, withQueryParam } from '../common/utils/url'
 import { getText, type TextResponse } from './MangaWorldHttp'
 import type {
@@ -25,8 +25,6 @@ import type {
 import { MangaWorldParser } from './MangaWorldParser'
 
 const BASE_URL = 'https://www.mangaworld.mx/'
-const MOBILE_USER_AGENT =
-  'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1'
 const HTML_CACHE_TTL_MS = 5 * 60 * 1000
 const MANGA_DATA_CACHE_TTL_MS = 10 * 60 * 1000
 const MAX_CACHE_ENTRIES = 30
@@ -56,31 +54,31 @@ interface CacheEntry<T> {
 const SECTIONS: MangaWorldListingConfig[] = [
   {
     id: 'featured',
-    title: 'In evidenza',
+    title: '⭐ In evidenza',
     path: '/',
     includeChapterUpdates: false,
   },
   {
     id: 'latest',
-    title: 'Ultimi aggiornamenti',
+    title: '📚 Ultimi aggiornamenti',
     path: '/',
     includeChapterUpdates: true,
   },
   {
     id: 'popular',
-    title: 'Piu letti',
+    title: '🔥 Più letti',
     path: '/archive?sort=most_read',
     includeChapterUpdates: false,
   },
   {
     id: 'new',
-    title: 'Nuove aggiunte',
+    title: '🆕 Nuove serie',
     path: '/archive?sort=newest',
     includeChapterUpdates: false,
   },
   {
     id: 'completed',
-    title: 'Completati',
+    title: '✅ Completati',
     path: '/archive?status=completed',
     includeChapterUpdates: false,
   },
@@ -113,7 +111,7 @@ export class MangaWorldClient {
     const pages = this.parser.parseChapterPages(response.body, response.url)
 
     debugLog(`[MangaWorld] Reader images returned: ${pages.length}`)
-    if (pages.length === 0) throw new Error('No readable pages found for this MangaWorld chapter')
+    if (pages.length === 0) throw new Error('No readable pages were found for this chapter.')
 
     return {
       id: chapter.chapterId,
@@ -132,7 +130,7 @@ export class MangaWorldClient {
       })),
       {
         id: 'genres',
-        title: 'Generi',
+        title: '🏷️ Generi',
         subtitle: 'Esplora MangaWorld per genere',
         type: DiscoverSectionType.genres,
       },
@@ -267,7 +265,7 @@ export class MangaWorldClient {
       case 'latest':
         return 'Capitoli appena pubblicati'
       case 'popular':
-        return 'Serie piu lette sul sito'
+        return 'Serie più lette sul sito'
       case 'new':
         return 'Serie aggiunte di recente'
       case 'completed':
@@ -326,7 +324,7 @@ export class MangaWorldClient {
 
   private headers(referer = BASE_URL): HeaderMap {
     return {
-      'user-agent': MOBILE_USER_AGENT,
+      'user-agent': MOBILE_SAFARI_USER_AGENT,
       accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
       'accept-language': 'it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7',
       referer,

@@ -38,17 +38,17 @@ interface CacheEntry<T> {
 const SECTIONS: PizzaReaderListingConfig[] = [
   {
     id: 'featured',
-    title: 'In evidenza',
+    title: '⭐ In evidenza',
     includeChapterUpdates: false,
   },
   {
     id: 'latest',
-    title: 'Ultimi capitoli',
+    title: '📚 Ultimi aggiornamenti',
     includeChapterUpdates: true,
   },
   {
     id: 'popular',
-    title: 'Catalogo',
+    title: '📖 Archivio',
     includeChapterUpdates: false,
   },
 ]
@@ -92,7 +92,7 @@ export class PizzaReaderClient {
     }
 
     debugLog(`[${this.config.sourceName}] Reader images returned: ${pages.length}`)
-    if (pages.length === 0) throw new Error(`No readable pages found for this ${this.config.sourceName} chapter`)
+    if (pages.length === 0) throw new Error('No readable pages were found for this chapter.')
 
     return {
       id: chapter.chapterId,
@@ -146,10 +146,10 @@ export class PizzaReaderClient {
     ]
 
     if (await this.hasGenres()) {
-      sections.push({
-        id: 'genres',
-        title: 'Generi',
-        subtitle: 'Esplora per genere',
+        sections.push({
+          id: 'genres',
+          title: '🏷️ Generi',
+          subtitle: 'Esplora per genere',
         type: DiscoverSectionType.genres,
       })
     }
@@ -213,7 +213,7 @@ export class PizzaReaderClient {
     if (cached) return cached
 
     const result = await this.getApi<PizzaReaderComicResponse>(endpoint)
-    if (!result.comic) throw new Error(`${this.config.sourceName} manga not found: ${mangaId}`)
+    if (!result.comic) throw new Error('This title could not be found in the source catalog.')
 
     this.rememberCache(this.mangaCache, endpoint, result.comic, MANGA_CACHE_TTL_MS)
     return result.comic
@@ -281,11 +281,11 @@ export class PizzaReaderClient {
   private sectionSubtitle(sectionId: string): string {
     switch (sectionId) {
       case 'featured':
-        return 'Serie aggiornate con copertina'
+        return 'Serie consigliate e aggiornate di recente'
       case 'latest':
         return 'Capitoli pubblicati di recente'
       case 'popular':
-        return 'Catalogo serie'
+        return 'Tutte le serie disponibili'
       default:
         return ''
     }

@@ -13,7 +13,7 @@ import {
   type SourceManga,
 } from '@paperback/types'
 
-import type { HeaderMap } from '../common/http/headers'
+import { MOBILE_SAFARI_USER_AGENT, type HeaderMap } from '../common/http/headers'
 import type { PageMetadata } from '../common/models/Pagination'
 import { normalizeUrl, pathIdFromUrl } from '../common/utils/url'
 import { getText, postForm, type TextResponse } from './WeebCentralHttp'
@@ -25,8 +25,6 @@ import type {
 import { WeebCentralParser } from './WeebCentralParser'
 
 const BASE_URL = 'https://weebcentral.com/'
-const MOBILE_USER_AGENT =
-  'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1'
 const HTML_CACHE_TTL_MS = 5 * 60 * 1000
 const MANGA_DATA_CACHE_TTL_MS = 10 * 60 * 1000
 const MAX_CACHE_ENTRIES = 30
@@ -34,13 +32,13 @@ const MAX_CACHE_ENTRIES = 30
 const SECTIONS: WeebCentralListingConfig[] = [
   {
     id: 'hot',
-    title: 'Hot Series',
+    title: '🔥 Popular Series',
     url: '/hot-series?sort=monthly_views',
     paged: false,
   },
   {
     id: 'recent',
-    title: 'Recently Added',
+    title: '🆕 Recently Added',
     url: '/recently-added',
     paged: true,
   },
@@ -77,7 +75,7 @@ export class WeebCentralClient {
     const pages = this.parser.parseChapterImages(response.body, response.url)
 
     debugLog(`[WeebCentral] Reader images returned: ${pages.length}`)
-    if (pages.length === 0) throw new Error('No readable manga pages found for this chapter')
+    if (pages.length === 0) throw new Error('No readable pages were found for this chapter.')
 
     return {
       id: chapter.chapterId,
@@ -202,7 +200,7 @@ export class WeebCentralClient {
 
   private headers(referer = BASE_URL): HeaderMap {
     return {
-      'user-agent': MOBILE_USER_AGENT,
+      'user-agent': MOBILE_SAFARI_USER_AGENT,
       accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
       'accept-language': 'en-US,en;q=0.9',
       referer,
@@ -226,9 +224,9 @@ export class WeebCentralClient {
   private sectionSubtitle(sectionId: string): string {
     switch (sectionId) {
       case 'hot':
-        return 'Serie popolari'
+        return 'Trending manga on WeebCentral'
       case 'recent':
-        return 'Nuove serie aggiunte'
+        return 'New manga added to the catalog'
       default:
         return ''
     }

@@ -60,7 +60,7 @@ export class FoolSlideClient {
     const pages = this.parser.parseChapterPages(response.body, response.url)
 
     debugLog(`[${this.config.sourceName}] Reader images returned: ${pages.length}`)
-    if (pages.length === 0) throw new Error(`No readable pages found for this ${this.config.sourceName} chapter`)
+    if (pages.length === 0) throw new Error('No readable pages were found for this chapter.')
 
     return {
       id: chapter.chapterId,
@@ -71,28 +71,28 @@ export class FoolSlideClient {
 
   async getDiscoverSections(): Promise<DiscoverSection[]> {
     const sections: DiscoverSection[] = [
-      {
-        id: 'featured',
-        title: 'In evidenza',
-        subtitle: this.supportsLatest() ? 'Serie aggiornate di recente' : 'Serie dal catalogo',
+        {
+          id: 'featured',
+          title: '⭐ In evidenza',
+          subtitle: this.supportsLatest() ? 'Serie aggiornate di recente' : 'Serie dal catalogo',
         type: DiscoverSectionType.featured,
       },
     ]
 
     if (this.supportsLatest()) {
       sections.push({
-        id: 'latest',
-        title: 'Ultimi capitoli',
-        subtitle: 'Aggiornamenti recenti',
+          id: 'latest',
+          title: '📚 Ultimi aggiornamenti',
+          subtitle: 'Aggiornamenti recenti',
         type: DiscoverSectionType.chapterUpdates,
       })
     }
 
     sections.push(
-      {
-        id: 'catalog',
-        title: 'Catalogo',
-        subtitle: 'Serie disponibili',
+        {
+          id: 'catalog',
+          title: '📖 Archivio',
+          subtitle: 'Tutte le serie disponibili',
         type: DiscoverSectionType.prominentCarousel,
       },
     )

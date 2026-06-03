@@ -4,7 +4,7 @@ const sourceInfo = {
   version: '1.0.2',
   name: 'WeebCentral',
   icon: 'icon.png',
-  description: 'Manga in inglese da WeebCentral.',
+  description: 'English manga source with discover, search and reader support.',
   contentRating: ContentRating.MATURE,
   developers: [
     {
@@ -15,9 +15,14 @@ const sourceInfo = {
   language: 'en',
   badges: [
     {
-      label: 'Manga EN',
+      label: 'English',
       textColor: '#ffffff',
       backgroundColor: '#2563eb',
+    },
+    {
+      label: 'Manga',
+      textColor: '#ffffff',
+      backgroundColor: '#7c3aed',
     },
   ],
   capabilities: [

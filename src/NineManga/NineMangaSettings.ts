@@ -1,4 +1,4 @@
-import { Form, Section, SelectRow } from '@paperback/types'
+import { Form, LabelRow, Section, SelectRow } from '@paperback/types'
 
 import {
   NINEMANGA_LANGUAGE_CONFIGS,
@@ -30,6 +30,11 @@ function selectedLanguageLabel(): string {
   return NINEMANGA_LANGUAGE_CONFIGS[readNineMangaLanguageSetting()].label
 }
 
+function selectedReaderMode(): string {
+  const flowType = NINEMANGA_LANGUAGE_CONFIGS[readNineMangaLanguageSetting()].flowType
+  return flowType === 'english-finance-gate' ? 'Finance reader flow' : 'Localized reader flow'
+}
+
 export class NineMangaSettingsForm extends Form {
   private readonly languageOptions = Object.values(NINEMANGA_LANGUAGE_CONFIGS).map((cfg) => ({
     id: cfg.id,
@@ -41,13 +46,25 @@ export class NineMangaSettingsForm extends Form {
       Section(
         {
           id: 'ninemanga_settings',
+          header: 'NineManga',
+          footer:
+            'This setting affects search, discover and chapter loading. English, Español and Русский use the Finance reader flow; other regions use the localized reader.',
         },
         [
+          LabelRow('ninemanga_selected_language', {
+            title: 'Selected region',
+            value: selectedLanguageLabel(),
+          }),
+          LabelRow('ninemanga_reader_mode', {
+            title: 'Reader mode',
+            value: selectedReaderMode(),
+          }),
           SelectRow(NINEMANGA_LANGUAGE_STATE_KEY, {
-            title: 'Lingua',
-            subtitle: selectedLanguageLabel(),
+            title: '🌍 Language / Region',
+            subtitle: 'Choose the catalog region used by NineManga.',
             value: [readNineMangaLanguageSetting()],
-            options: this.languageOptions,
+            layout: 'list',
+            items: this.languageOptions,
             minItemCount: 1,
             maxItemCount: 1,
             onValueChange: Application.Selector(

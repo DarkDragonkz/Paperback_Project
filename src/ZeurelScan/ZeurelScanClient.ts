@@ -36,19 +36,19 @@ interface CacheEntry<T> {
 const SECTIONS: ZeurelScanListingConfig[] = [
   {
     id: 'featured',
-    title: 'In evidenza',
+    title: '⭐ In evidenza',
     path: '/ultimi',
     includeChapterUpdates: false,
   },
   {
     id: 'latest',
-    title: 'Ultimi capitoli',
+    title: '📚 Ultimi aggiornamenti',
     path: '/ultimi',
     includeChapterUpdates: true,
   },
   {
     id: 'series',
-    title: 'Serie',
+    title: '📖 Archivio',
     path: '/series',
     includeChapterUpdates: false,
   },
@@ -80,7 +80,7 @@ export class ZeurelScanClient {
     const pages = this.parser.parseChapterPages(response.body, response.url)
 
     debugLog(`[ZeurelScan] Reader images returned: ${pages.length}`)
-    if (pages.length === 0) throw new Error('No readable pages found for this ZeurelScan chapter')
+    if (pages.length === 0) throw new Error('No readable pages were found for this chapter.')
 
     return {
       id: chapter.chapterId,
@@ -204,7 +204,7 @@ export class ZeurelScanClient {
       case 'latest':
         return 'Capitoli appena pubblicati'
       case 'series':
-        return 'Catalogo serie'
+        return 'Tutte le serie disponibili'
       default:
         return ''
     }
