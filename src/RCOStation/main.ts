@@ -20,7 +20,7 @@ import { mobileImageHeaders } from '../common/http/headers'
 import { ImageRequestInterceptor } from '../common/http/imageInterceptor'
 import { RCOStationClient } from './RCOStationClient'
 
-const SOURCE_VERSION = '1.0.2'
+const SOURCE_VERSION = '1.0.3'
 const BLOGSPOT_IMAGE_HEADERS = mobileImageHeaders('https://rcostation.xyz/')
 
 class RCOStationExtension

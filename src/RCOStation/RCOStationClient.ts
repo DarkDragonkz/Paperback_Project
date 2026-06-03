@@ -32,6 +32,7 @@ const MAX_CACHE_ENTRIES = 30
 const MAX_COVER_ENRICHMENT_ITEMS = 16
 const COVER_ENRICHMENT_BATCH_SIZE = 4
 const MAX_IMAGE_PROBES_PER_CANDIDATE = 80
+const IMAGE_PROBE_BATCH_SIZE = 8
 
 interface CacheEntry<T> {
   expiresAt: number
@@ -251,9 +252,15 @@ export class RCOStationClient {
     const validPages: string[] = []
     const limitedPages = pages.slice(0, MAX_IMAGE_PROBES_PER_CANDIDATE)
 
-    for (const page of limitedPages) {
-      const workingUrl = await this.firstWorkingImageUrl(page)
-      if (workingUrl) validPages.push(workingUrl)
+    for (let index = 0; index < limitedPages.length; index += IMAGE_PROBE_BATCH_SIZE) {
+      const batch = limitedPages.slice(index, index + IMAGE_PROBE_BATCH_SIZE)
+      const workingUrls = await Promise.all(
+        batch.map((page) => this.firstWorkingImageUrl(page))
+      )
+
+      for (const workingUrl of workingUrls) {
+        if (workingUrl) validPages.push(workingUrl)
+      }
     }
 
     return validPages
