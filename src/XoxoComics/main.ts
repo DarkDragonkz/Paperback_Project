@@ -19,7 +19,7 @@ import type {
 import { ImageRequestInterceptor } from '../common/http/imageInterceptor'
 import { XoxoComicsClient } from './XoxoComicsClient'
 
-const SOURCE_VERSION = '1.0.4'
+const SOURCE_VERSION = '1.0.5'
 const BASE_URL = 'https://xoxocomic.com/'
 const MOBILE_USER_AGENT =
   'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1'

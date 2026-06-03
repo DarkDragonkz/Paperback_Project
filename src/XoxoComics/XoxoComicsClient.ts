@@ -104,10 +104,16 @@ export class XoxoComicsClient {
       try {
         const allResponse = await this.getHtml(allPagesUrl, chapterUrl || BASE_URL)
         const allImages = this.parser.parseIssueImages(allResponse.body, allResponse.url)
-        if (allImages.length > 1 && await this.firstReaderImageIsAvailable(allImages[0], chapterUrl || allResponse.url)) {
+        if (allImages.length > 0) {
+          if (!(await this.firstReaderImageIsAvailable(allImages[0]))) {
+            throw new Error('XoxoComics reader: image host returned HTML for this issue')
+          }
+
           pages = allImages
         }
       } catch (error) {
+        if (this.isImageHostHtmlError(error)) throw error
+
         debugLog(`[XoxoComics] All pages reader failed: ${String(error)}`)
       }
     }
@@ -118,8 +124,8 @@ export class XoxoComicsClient {
 
     debugLog(`[XoxoComics] Reader images returned: ${pages.length}`)
     if (pages.length === 0) throw new Error('No readable comic pages found for this chapter')
-    if (!(await this.firstReaderImageIsAvailable(pages[0], chapterUrl || BASE_URL))) {
-      throw new Error('XoxoComics reader: image URLs are currently returning HTML instead of image files')
+    if (!(await this.firstReaderImageIsAvailable(pages[0]))) {
+      throw new Error('XoxoComics reader: image host returned HTML for this issue')
     }
 
     return {
@@ -280,10 +286,16 @@ export class XoxoComicsClient {
       try {
         const allResponse = await this.getHtml(selectedAllUrl, chapterUrl)
         const allImages = this.parser.parseIssueImages(allResponse.body, allResponse.url)
-        if (allImages.length > 1 && await this.firstReaderImageIsAvailable(allImages[0], chapterUrl)) {
+        if (allImages.length > 0) {
+          if (!(await this.firstReaderImageIsAvailable(allImages[0]))) {
+            throw new Error('XoxoComics reader: image host returned HTML for this issue')
+          }
+
           return allImages
         }
       } catch (error) {
+        if (this.isImageHostHtmlError(error)) throw error
+
         debugLog(`[XoxoComics] Selected all pages reader failed: ${String(error)}`)
       }
     }
@@ -314,23 +326,24 @@ export class XoxoComicsClient {
     }
   }
 
-  private imageHeaders(referer = BASE_URL): HeaderMap {
+  private imageHeaders(): HeaderMap {
     return {
       'user-agent': MOBILE_USER_AGENT,
-      accept: 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8',
-      'accept-language': 'en-US,en;q=0.9',
-      referer,
+      accept: 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+      'accept-language': 'it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7',
+      'cache-control': 'no-cache',
+      pragma: 'no-cache',
     }
   }
 
-  private async firstReaderImageIsAvailable(url: string | undefined, referer: string): Promise<boolean> {
+  private async firstReaderImageIsAvailable(url: string | undefined): Promise<boolean> {
     if (!url) return false
 
     const cachedValue = this.cacheValue(this.imageAvailabilityCache, url)
     if (cachedValue !== undefined) return cachedValue
 
     try {
-      const response = await head(url, this.imageHeaders(referer))
+      const response = await head(url, this.imageHeaders())
       const contentType = this.headerValue(response.headers, 'content-type').toLowerCase()
       const available =
         response.status >= 200 &&
@@ -345,6 +358,10 @@ export class XoxoComicsClient {
       debugLog(`[XoxoComics] First image availability check failed for ${url}: ${String(error)}`)
       return true
     }
+  }
+
+  private isImageHostHtmlError(error: unknown): boolean {
+    return String(error).includes('XoxoComics reader: image host returned HTML')
   }
 
   private headerValue(headers: Record<string, string>, name: string): string {
