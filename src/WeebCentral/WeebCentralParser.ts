@@ -175,9 +175,11 @@ export class WeebCentralParser {
       })
     })
 
-    return uniqueBy(chapters, (chapter) => chapter.chapterId).map((chapter, index) => ({
+    const uniqueChapters = uniqueBy(chapters, (chapter) => chapter.chapterId)
+
+    return uniqueChapters.map((chapter, index) => ({
       ...chapter,
-      sortingIndex: index,
+      sortingIndex: uniqueChapters.length - index - 1,
     }))
   }
 
