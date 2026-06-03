@@ -9,7 +9,6 @@ import { normalizeUrl, pathIdFromUrl } from '../common/utils/url'
 import type { XoxoComicsListingItem, XoxoComicsMangaData } from './XoxoComicsModels'
 
 const MAX_SYNTHETIC_PAGES = 250
-const CHAPTER_PATH_PATTERN = /\/comic\/[^/?#]+\/(?!all(?:\/|$)|\d+(?:\/|$))[^/?#]+(?:\/|$)/i
 const READER_IMAGE_PATTERN = /\/comic\/[^/?#]+\/[^/?#]+\/\d+\/\d+\.(?:jpe?g|png|webp)(?:[?#].*)?$/i
 const BAD_IMAGE_PATTERN = /(logo|favicon|loading|avatar|ads?|advert|banner|tracking|pixel|blank|spacer|icon|sprite|preloader|loader|captcha|analytics|counter|button|emoji)/i
 
@@ -108,6 +107,34 @@ export class XoxoComicsParser {
 
     const syntheticPages = this.synthesizeImagePages(uniqueImages[0], totalPages)
     return syntheticPages.length > uniqueImages.length ? syntheticPages : uniqueImages
+  }
+
+  parseAllPagesUrl(html: string, currentUrl: string): string {
+    const $ = cheerio.load(html)
+    const allOption = $('#selectPage option[value], select option[value]').filter((_, element) => {
+      const option = $(element)
+      const value = normalizeUrl(option.attr('value'), currentUrl || this.baseUrl)
+      return /\/all\/?$/i.test(value) || /all\s+pages/i.test(cleanText(option.text()))
+    }).first()
+
+    return normalizeUrl(allOption.attr('value'), currentUrl || this.baseUrl)
+  }
+
+  parseReaderPageUrls(html: string, currentUrl: string): string[] {
+    const $ = cheerio.load(html)
+    const currentIssuePath = this.issuePathFromUrl(currentUrl)
+    const pageUrls: string[] = []
+
+    $('#selectPage option[value], select option[value]').each((_, element) => {
+      const url = normalizeUrl($(element).attr('value'), currentUrl || this.baseUrl)
+      if (!url || this.issuePathFromUrl(url) !== currentIssuePath) return
+      if (/\/all\/?$/i.test(url)) return
+      if (!/\/\d+\/?$/i.test(url)) return
+
+      pageUrls.push(url)
+    })
+
+    return uniqueStrings(pageUrls).sort((left, right) => this.readerPageNumber(left) - this.readerPageNumber(right))
   }
 
   parseMangaPageUrls(html: string, currentUrl: string): string[] {
@@ -365,7 +392,7 @@ export class XoxoComicsParser {
     if (!normalized || normalized.startsWith('data:')) return false
     if (BAD_IMAGE_PATTERN.test(normalized)) return false
     if (!/^https:\/\/xoxocomic\.com\//i.test(url)) return false
-    return READER_IMAGE_PATTERN.test(url) || CHAPTER_PATH_PATTERN.test(url)
+    return READER_IMAGE_PATTERN.test(url)
   }
 
   private parseGenres(value: string): string[] {
@@ -440,8 +467,17 @@ export class XoxoComicsParser {
     return normalized.match(/\/comic\/[^/?#]+/i)?.[0] ?? ''
   }
 
+  private issuePathFromUrl(rawUrl: string): string {
+    const normalized = this.canonicalChapterUrl(rawUrl)
+    return normalized.match(/\/comic\/[^/?#]+\/[^/?#]+/i)?.[0] ?? ''
+  }
+
   private pageNumber(rawUrl: string): number {
     return Number(rawUrl.match(/[?&]page=(\d+)/i)?.[1] ?? 1)
+  }
+
+  private readerPageNumber(rawUrl: string): number {
+    return Number(rawUrl.match(/\/(\d+)\/?$/)?.[1] ?? 0)
   }
 
   private withSiteSortingIndex(chapters: Chapter[]): Chapter[] {

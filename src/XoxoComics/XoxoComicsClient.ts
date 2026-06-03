@@ -17,7 +17,7 @@ import type { HeaderMap } from '../common/http/headers'
 import type { PageMetadata } from '../common/models/Pagination'
 import { uniqueBy } from '../common/utils/array'
 import { normalizeUrl, pathIdFromUrl } from '../common/utils/url'
-import { getText, type TextResponse } from './XoxoComicsHttp'
+import { getText, head, type TextResponse } from './XoxoComicsHttp'
 import type {
   XoxoComicsListingConfig,
   XoxoComicsListingItem,
@@ -30,8 +30,10 @@ const MOBILE_USER_AGENT =
   'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1'
 const HTML_CACHE_TTL_MS = 5 * 60 * 1000
 const MANGA_DATA_CACHE_TTL_MS = 10 * 60 * 1000
+const IMAGE_AVAILABILITY_CACHE_TTL_MS = 10 * 60 * 1000
 const MAX_CACHE_ENTRIES = 30
 const MAX_CHAPTER_LIST_PAGES = 8
+const MAX_READER_FALLBACK_PAGES = 120
 
 const SECTIONS: XoxoComicsListingConfig[] = [
   {
@@ -78,6 +80,7 @@ export class XoxoComicsClient {
   private readonly htmlCache = new Map<string, CacheEntry<TextResponse>>()
   private readonly htmlRequests = new Map<string, Promise<TextResponse>>()
   private readonly mangaDataCache = new Map<string, CacheEntry<XoxoComicsMangaData>>()
+  private readonly imageAvailabilityCache = new Map<string, CacheEntry<boolean>>()
 
   async getMangaDetails(mangaId: string): Promise<SourceManga> {
     return this.parser.toSourceManga(await this.getMangaData(mangaId))
@@ -95,17 +98,29 @@ export class XoxoComicsClient {
   async getChapterDetails(chapter: Chapter): Promise<ChapterDetails> {
     const chapterUrl = this.parser.canonicalChapterUrl(chapter.additionalInfo?.url ?? chapter.chapterId)
     const allPagesUrl = this.parser.allPagesUrl(chapterUrl)
-    const response = await this.getHtml(allPagesUrl || chapterUrl, chapterUrl || BASE_URL)
-    let pages = this.parser.parseIssueImages(response.body, response.url)
+    let pages: string[] = []
 
-    if (pages.length <= 1 && response.url !== chapterUrl) {
-      const fallback = await this.getHtml(chapterUrl, BASE_URL)
-      const fallbackPages = this.parser.parseIssueImages(fallback.body, fallback.url)
-      if (fallbackPages.length > pages.length) pages = fallbackPages
+    if (allPagesUrl) {
+      try {
+        const allResponse = await this.getHtml(allPagesUrl, chapterUrl || BASE_URL)
+        const allImages = this.parser.parseIssueImages(allResponse.body, allResponse.url)
+        if (allImages.length > 1 && await this.firstReaderImageIsAvailable(allImages[0], chapterUrl || allResponse.url)) {
+          pages = allImages
+        }
+      } catch (error) {
+        debugLog(`[XoxoComics] All pages reader failed: ${String(error)}`)
+      }
+    }
+
+    if (pages.length === 0) {
+      pages = await this.getChapterPagesFromPageSelector(chapterUrl)
     }
 
     debugLog(`[XoxoComics] Reader images returned: ${pages.length}`)
     if (pages.length === 0) throw new Error('No readable comic pages found for this chapter')
+    if (!(await this.firstReaderImageIsAvailable(pages[0], chapterUrl || BASE_URL))) {
+      throw new Error('XoxoComics reader: image URLs are currently returning HTML instead of image files')
+    }
 
     return {
       id: chapter.chapterId,
@@ -256,6 +271,40 @@ export class XoxoComicsClient {
     return request
   }
 
+  private async getChapterPagesFromPageSelector(chapterUrl: string): Promise<string[]> {
+    if (!chapterUrl) return []
+
+    const chapterResponse = await this.getHtml(chapterUrl, BASE_URL)
+    const selectedAllUrl = this.parser.parseAllPagesUrl(chapterResponse.body, chapterResponse.url)
+    if (selectedAllUrl) {
+      try {
+        const allResponse = await this.getHtml(selectedAllUrl, chapterUrl)
+        const allImages = this.parser.parseIssueImages(allResponse.body, allResponse.url)
+        if (allImages.length > 1 && await this.firstReaderImageIsAvailable(allImages[0], chapterUrl)) {
+          return allImages
+        }
+      } catch (error) {
+        debugLog(`[XoxoComics] Selected all pages reader failed: ${String(error)}`)
+      }
+    }
+
+    const pageUrls = this.parser
+      .parseReaderPageUrls(chapterResponse.body, chapterResponse.url)
+      .slice(0, MAX_READER_FALLBACK_PAGES)
+    const images: string[] = []
+
+    for (const pageUrl of pageUrls) {
+      try {
+        const pageResponse = await this.getHtml(pageUrl, chapterUrl)
+        images.push(...this.parser.parseIssueImages(pageResponse.body, pageResponse.url))
+      } catch (error) {
+        debugLog(`[XoxoComics] Reader page fallback failed for ${pageUrl}: ${String(error)}`)
+      }
+    }
+
+    return uniqueBy(images, (image) => image)
+  }
+
   private headers(referer = BASE_URL): HeaderMap {
     return {
       'user-agent': MOBILE_USER_AGENT,
@@ -263,6 +312,47 @@ export class XoxoComicsClient {
       'accept-language': 'en-US,en;q=0.9',
       referer,
     }
+  }
+
+  private imageHeaders(referer = BASE_URL): HeaderMap {
+    return {
+      'user-agent': MOBILE_USER_AGENT,
+      accept: 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8',
+      'accept-language': 'en-US,en;q=0.9',
+      referer,
+    }
+  }
+
+  private async firstReaderImageIsAvailable(url: string | undefined, referer: string): Promise<boolean> {
+    if (!url) return false
+
+    const cachedValue = this.cacheValue(this.imageAvailabilityCache, url)
+    if (cachedValue !== undefined) return cachedValue
+
+    try {
+      const response = await head(url, this.imageHeaders(referer))
+      const contentType = this.headerValue(response.headers, 'content-type').toLowerCase()
+      const available =
+        response.status >= 200 &&
+        response.status < 400 &&
+        !contentType.startsWith('text/html') &&
+        !contentType.includes('application/json') &&
+        !contentType.includes('application/xml')
+
+      this.rememberCache(this.imageAvailabilityCache, url, available, IMAGE_AVAILABILITY_CACHE_TTL_MS)
+      return available
+    } catch (error) {
+      debugLog(`[XoxoComics] First image availability check failed for ${url}: ${String(error)}`)
+      return true
+    }
+  }
+
+  private headerValue(headers: Record<string, string>, name: string): string {
+    const match = Object.entries(headers).find(
+      ([key]) => key.toLowerCase() === name.toLowerCase()
+    )
+
+    return match?.[1] ?? ''
   }
 
   private mangaUrl(mangaId: string): string {

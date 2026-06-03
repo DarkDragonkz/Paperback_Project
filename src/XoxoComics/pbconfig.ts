@@ -1,7 +1,7 @@
 import { ContentRating, SourceIntents, type ExtensionInfo } from '@paperback/types'
 
 const sourceInfo = {
-  version: '1.0.2',
+  version: '1.0.4',
   name: 'XoxoComics',
   icon: 'icon.png',
   description: 'Comics e issue in inglese da XoxoComics.',
