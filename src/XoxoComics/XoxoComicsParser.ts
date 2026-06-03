@@ -5,7 +5,6 @@ import type { AnyNode } from 'domhandler'
 
 import { cleanText, safeAttr, safeText, splitCommaList } from '../common/parsing/html'
 import { uniqueBy, uniqueStrings } from '../common/utils/array'
-import { orderChaptersForReading } from '../common/utils/chapters'
 import { normalizeUrl, pathIdFromUrl } from '../common/utils/url'
 import type { XoxoComicsListingItem, XoxoComicsMangaData } from './XoxoComicsModels'
 
@@ -217,7 +216,7 @@ export class XoxoComicsParser {
       })
     })
 
-    return orderChaptersForReading(uniqueBy(chapters, (chapter) => chapter.chapterId))
+    return this.withSiteSortingIndex(uniqueBy(chapters, (chapter) => chapter.chapterId))
   }
 
   private mangaAnchor($: CheerioAPI, item: Cheerio<AnyNode>): Cheerio<AnyNode> {
@@ -443,6 +442,13 @@ export class XoxoComicsParser {
 
   private pageNumber(rawUrl: string): number {
     return Number(rawUrl.match(/[?&]page=(\d+)/i)?.[1] ?? 1)
+  }
+
+  private withSiteSortingIndex(chapters: Chapter[]): Chapter[] {
+    return chapters.map((chapter, index) => ({
+      ...chapter,
+      sortingIndex: index,
+    }))
   }
 
   private toTagGroups(genres: string[]): TagSection[] {

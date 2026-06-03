@@ -16,9 +16,8 @@ import {
 import type { HeaderMap } from '../common/http/headers'
 import type { PageMetadata } from '../common/models/Pagination'
 import { uniqueBy } from '../common/utils/array'
-import { orderChaptersForReading } from '../common/utils/chapters'
 import { normalizeUrl, pathIdFromUrl } from '../common/utils/url'
-import { getText, head, type HeadResponse, type TextResponse } from './XoxoComicsHttp'
+import { getText, type TextResponse } from './XoxoComicsHttp'
 import type {
   XoxoComicsListingConfig,
   XoxoComicsListingItem,
@@ -31,7 +30,6 @@ const MOBILE_USER_AGENT =
   'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1'
 const HTML_CACHE_TTL_MS = 5 * 60 * 1000
 const MANGA_DATA_CACHE_TTL_MS = 10 * 60 * 1000
-const IMAGE_HEAD_CACHE_TTL_MS = 10 * 60 * 1000
 const MAX_CACHE_ENTRIES = 30
 const MAX_CHAPTER_LIST_PAGES = 8
 
@@ -80,7 +78,6 @@ export class XoxoComicsClient {
   private readonly htmlCache = new Map<string, CacheEntry<TextResponse>>()
   private readonly htmlRequests = new Map<string, Promise<TextResponse>>()
   private readonly mangaDataCache = new Map<string, CacheEntry<XoxoComicsMangaData>>()
-  private readonly imageHeadCache = new Map<string, CacheEntry<boolean>>()
 
   async getMangaDetails(mangaId: string): Promise<SourceManga> {
     return this.parser.toSourceManga(await this.getMangaData(mangaId))
@@ -101,15 +98,13 @@ export class XoxoComicsClient {
     const response = await this.getHtml(allPagesUrl || chapterUrl, chapterUrl || BASE_URL)
     let pages = this.parser.parseIssueImages(response.body, response.url)
 
-    if (pages.length === 0 && response.url !== chapterUrl) {
+    if (pages.length <= 1 && response.url !== chapterUrl) {
       const fallback = await this.getHtml(chapterUrl, BASE_URL)
-      pages = this.parser.parseIssueImages(fallback.body, fallback.url)
+      const fallbackPages = this.parser.parseIssueImages(fallback.body, fallback.url)
+      if (fallbackPages.length > pages.length) pages = fallbackPages
     }
 
-    const rawPageCount = pages.length
-    pages = await this.filterReadableImages(pages, chapterUrl || response.url)
-
-    debugLog(`[XoxoComics] Reader images returned: ${pages.length}/${rawPageCount}`)
+    debugLog(`[XoxoComics] Reader images returned: ${pages.length}`)
     if (pages.length === 0) throw new Error('No readable comic pages found for this chapter')
 
     return {
@@ -197,7 +192,7 @@ export class XoxoComicsClient {
       }
     }
 
-    data.chapters = orderChaptersForReading(uniqueBy(chapters, (chapter) => chapter.chapterId))
+    data.chapters = this.withSiteSortingIndex(uniqueBy(chapters, (chapter) => chapter.chapterId))
 
     this.rememberCache(this.mangaDataCache, mangaUrl, data, MANGA_DATA_CACHE_TTL_MS)
     return data
@@ -261,35 +256,6 @@ export class XoxoComicsClient {
     return request
   }
 
-  private async filterReadableImages(pages: string[], referer: string): Promise<string[]> {
-    const readablePages: string[] = []
-
-    for (const page of pages) {
-      if (await this.isReadableImage(page, referer)) readablePages.push(page)
-    }
-
-    return readablePages
-  }
-
-  private async isReadableImage(url: string, referer: string): Promise<boolean> {
-    const cached = this.cacheValue(this.imageHeadCache, url)
-    if (cached !== undefined) return cached
-
-    let response: HeadResponse
-    try {
-      response = await head(url, this.imageHeaders(referer))
-    } catch (error) {
-      debugLog(`[XoxoComics] Image validation failed for ${url}: ${String(error)}`)
-      this.rememberCache(this.imageHeadCache, url, false, IMAGE_HEAD_CACHE_TTL_MS)
-      return false
-    }
-
-    const contentType = this.headerValue(response.headers, 'content-type')
-    const readable = response.status >= 200 && response.status < 300 && /^image\//i.test(contentType)
-    this.rememberCache(this.imageHeadCache, url, readable, IMAGE_HEAD_CACHE_TTL_MS)
-    return readable
-  }
-
   private headers(referer = BASE_URL): HeaderMap {
     return {
       'user-agent': MOBILE_USER_AGENT,
@@ -297,22 +263,6 @@ export class XoxoComicsClient {
       'accept-language': 'en-US,en;q=0.9',
       referer,
     }
-  }
-
-  private imageHeaders(referer = BASE_URL): HeaderMap {
-    return {
-      'user-agent': MOBILE_USER_AGENT,
-      accept: 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8',
-      referer,
-    }
-  }
-
-  private headerValue(headers: Record<string, string>, name: string): string {
-    const match = Object.entries(headers).find(
-      ([key]) => key.toLowerCase() === name.toLowerCase()
-    )
-
-    return match?.[1] ?? ''
   }
 
   private mangaUrl(mangaId: string): string {
@@ -355,6 +305,13 @@ export class XoxoComicsClient {
   private readPage(metadata: Metadata | undefined): number {
     const page = (metadata as PageMetadata | undefined)?.page
     return typeof page === 'number' && page > 0 ? page : 1
+  }
+
+  private withSiteSortingIndex<T extends Chapter>(chapters: T[]): T[] {
+    return chapters.map((chapter, index) => ({
+      ...chapter,
+      sortingIndex: index,
+    }))
   }
 
   private cacheValue<T>(cache: Map<string, CacheEntry<T>>, key: string): T | undefined {

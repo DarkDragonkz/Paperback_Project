@@ -11,18 +11,8 @@ export interface TextResponse {
   body: string
 }
 
-export interface HeadResponse {
-  url: string
-  status: number
-  headers: Record<string, string>
-}
-
 export async function getText(url: string, headers?: HeaderMap): Promise<TextResponse> {
   return requestText({ url, method: 'GET', headers }, 0)
-}
-
-export async function head(url: string, headers?: HeaderMap): Promise<HeadResponse> {
-  return requestHead({ url, method: 'HEAD', headers }, 0)
 }
 
 async function requestText(request: Request, redirectCount: number): Promise<TextResponse> {
@@ -54,33 +44,6 @@ async function requestText(request: Request, redirectCount: number): Promise<Tex
     url: response.url || request.url,
     status: response.status,
     body,
-  }
-}
-
-async function requestHead(request: Request, redirectCount: number): Promise<HeadResponse> {
-  const [response] = await Application.scheduleRequest(request)
-  const redirectUrl = redirectLocation(response)
-
-  if (redirectUrl && redirectCount < MAX_REDIRECTS) {
-    const nextUrl = normalizeUrl(redirectUrl, response.url || request.url)
-
-    return requestHead(
-      {
-        url: nextUrl,
-        method: 'HEAD',
-        headers: {
-          ...request.headers,
-          referer: response.url || request.url,
-        },
-      },
-      redirectCount + 1
-    )
-  }
-
-  return {
-    url: response.url || request.url,
-    status: response.status,
-    headers: response.headers,
   }
 }
 
