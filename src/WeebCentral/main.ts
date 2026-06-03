@@ -16,29 +16,19 @@ import type {
   SourceManga,
 } from '@paperback/types'
 
-import { ImageRequestInterceptor } from '../common/http/imageInterceptor'
 import { WeebCentralClient } from './WeebCentralClient'
+import { WeebCentralInterceptor } from './WeebCentralInterceptor'
 
-const SOURCE_VERSION = '1.0.0'
-const BASE_URL = 'https://weebcentral.com/'
-const MOBILE_USER_AGENT =
-  'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1'
-const IMAGE_HEADERS = {
-  'user-agent': MOBILE_USER_AGENT,
-  accept: 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8',
-  referer: BASE_URL,
-}
+const SOURCE_VERSION = '1.0.1'
 
 class WeebCentralExtension
   implements Extension, ChapterProviding, SearchResultsProviding, DiscoverSectionProviding
 {
   private readonly client = new WeebCentralClient()
-  private readonly imageInterceptor = new ImageRequestInterceptor('weebcentral-image-headers', [
-    { pattern: /^https?:\/\/(?:hot\.planeptune\.us|temp\.compsci88\.com)\//i, headers: IMAGE_HEADERS },
-  ])
+  private readonly interceptor = new WeebCentralInterceptor('weebcentral-headers')
 
   async initialise(): Promise<void> {
-    this.imageInterceptor.registerInterceptor()
+    this.interceptor.registerInterceptor()
     debugLog(`[WeebCentral] Initialising source ${SOURCE_VERSION}`)
   }
 

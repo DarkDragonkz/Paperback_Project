@@ -10,7 +10,7 @@ import type { WeebCentralListingItem, WeebCentralMangaData } from './WeebCentral
 
 const SERIES_URL_PATTERN = /^https:\/\/weebcentral\.com\/series\/[A-Z0-9]+\/[^/?#]+\/?$/i
 const CHAPTER_URL_PATTERN = /^https:\/\/weebcentral\.com\/chapters\/[A-Z0-9]+\/?$/i
-const READER_IMAGE_PATTERN = /^https:\/\/(?:hot\.planeptune\.us|temp\.compsci88\.com)\//i
+const READER_IMAGE_PATTERN = /^https:\/\/(?:(?:[^/?#]+\.)?planeptune\.us|temp\.compsci88\.com)\//i
 const BAD_IMAGE_PATTERN = /(brand|logo|favicon|apple-touch-icon|broken_image|cover\/)/i
 
 export class WeebCentralParser {
@@ -79,8 +79,10 @@ export class WeebCentralParser {
   parseChapterImages(html: string, currentUrl: string): string[] {
     const $ = cheerio.load(html)
     const images: string[] = []
+    const readerImages = $('img', 'section.cursor-pointer')
+    const candidates = readerImages.length > 0 ? readerImages : $('section img, img')
 
-    $('section img, img').each((_, element) => {
+    candidates.each((_, element) => {
       const image = $(element)
       for (const imageUrl of this.imageUrlsFromElement(image, currentUrl)) {
         if (this.isReaderImage(imageUrl)) images.push(imageUrl)
