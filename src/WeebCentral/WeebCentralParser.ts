@@ -162,18 +162,18 @@ export class WeebCentralParser {
       if (!title) return
 
       chapters.push({
-        chapterId: pathIdFromUrl(url, this.baseUrl),
-        sourceManga,
-        langCode: 'en',
-        chapNum: this.parseChapterNumber(title),
-        title,
-        publishDate: this.parseDate(row.find('time').first().attr('datetime') || cleanText(row.find('time').first().text())),
-        sortingIndex: index,
-        additionalInfo: {
-          url,
-        },
-      })
-    })
+  chapterId: pathIdFromUrl(url, this.baseUrl),
+  sourceManga,
+  langCode: 'en',
+  volume: 0,
+  chapNum: this.parseChapterNumber(title),
+  title,
+  publishDate: this.parseDate(row.find('time').first().attr('datetime') || cleanText(row.find('time').first().text())),
+  sortingIndex: index,
+  additionalInfo: {
+    url,
+  },
+})
 
     const uniqueChapters = uniqueBy(chapters, (chapter) => chapter.chapterId)
 
