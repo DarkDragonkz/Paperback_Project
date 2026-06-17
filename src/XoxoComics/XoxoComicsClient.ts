@@ -16,6 +16,7 @@ import {
 import { MOBILE_SAFARI_USER_AGENT, type HeaderMap } from '../common/http/headers'
 import type { PageMetadata } from '../common/models/Pagination'
 import { uniqueBy } from '../common/utils/array'
+import { orderChaptersForReading } from '../common/utils/chapters'
 import { normalizeUrl, pathIdFromUrl } from '../common/utils/url'
 import { getText, head, type TextResponse } from './XoxoComicsHttp'
 import type {
@@ -436,10 +437,7 @@ export class XoxoComicsClient {
   }
 
   private withSiteSortingIndex<T extends Chapter>(chapters: T[]): T[] {
-    return chapters.map((chapter, index) => ({
-      ...chapter,
-      sortingIndex: index,
-    }))
+    return orderChaptersForReading(chapters)
   }
 
   private cacheValue<T>(cache: Map<string, CacheEntry<T>>, key: string): T | undefined {

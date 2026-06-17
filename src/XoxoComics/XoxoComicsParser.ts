@@ -5,6 +5,7 @@ import type { AnyNode } from 'domhandler'
 
 import { cleanText, safeAttr, safeText, splitCommaList } from '../common/parsing/html'
 import { uniqueBy, uniqueStrings } from '../common/utils/array'
+import { orderChaptersForReading } from '../common/utils/chapters'
 import { normalizeUrl, pathIdFromUrl } from '../common/utils/url'
 import type { XoxoComicsListingItem, XoxoComicsMangaData } from './XoxoComicsModels'
 
@@ -234,6 +235,7 @@ export class XoxoComicsParser {
         sourceManga,
         langCode: 'en',
         chapNum: this.parseChapterNumber(title || issueUrl),
+        volume: 0,
         title: this.cleanChapterTitle(title, mangaTitle),
         publishDate: this.parseDate(dateText),
         sortingIndex: index,
@@ -426,11 +428,17 @@ export class XoxoComicsParser {
     const tpb = value.match(/(?:_|\b)tpb[_\s-]*(\d+(?:\.\d+)?)/i)?.[1]
     if (tpb) return Number(tpb)
 
+    const volume = value.match(/(?:volume|vol\.?)[_\s-]*(\d+(?:\.\d+)?)/i)?.[1]
+    if (volume) return Number(volume)
+
     const slugIssue = value.match(/\/issue-(\d+(?:\.\d+)?)/i)?.[1]
     if (slugIssue) return Number(slugIssue)
 
     const slugTpb = value.match(/\/tpb-(\d+(?:\.\d+)?)/i)?.[1]
-    return slugTpb ? Number(slugTpb) : 0
+    if (slugTpb) return Number(slugTpb)
+
+    const slugVolume = value.match(/\/vol(?:ume)?-(\d+(?:\.\d+)?)/i)?.[1]
+    return slugVolume ? Number(slugVolume) : 0
   }
 
   private parseDate(value: string): Date | undefined {
@@ -481,10 +489,7 @@ export class XoxoComicsParser {
   }
 
   private withSiteSortingIndex(chapters: Chapter[]): Chapter[] {
-    return chapters.map((chapter, index) => ({
-      ...chapter,
-      sortingIndex: index,
-    }))
+    return orderChaptersForReading(chapters)
   }
 
   private toTagGroups(genres: string[]): TagSection[] {
