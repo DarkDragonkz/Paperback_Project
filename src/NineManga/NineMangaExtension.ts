@@ -100,6 +100,20 @@ class NineMangaExtension
   }
 
   async saveCloudflareBypassCookies(cookies: Cookie[]): Promise<void> {
+    this.storeCloudflareBypassCookies(cookies)
+  }
+
+  async cloudflareBypassCompleted(
+    request: Request,
+    cookies: Cookie[],
+    localStorage: Record<string, string>
+  ): Promise<void> {
+    void request
+    void localStorage
+    this.storeCloudflareBypassCookies(cookies)
+  }
+
+  private storeCloudflareBypassCookies(cookies: Cookie[]): void {
     let savedCookies = 0
 
     for (const cookie of cookies) {

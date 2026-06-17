@@ -34,6 +34,8 @@ const MAX_CHAPTER_LIST_PAGES = 8
 const MAX_READER_FALLBACK_PAGES = 120
 const CHAPTER_LIST_PAGE_BATCH_SIZE = 4
 const READER_FALLBACK_PAGE_BATCH_SIZE = 8
+const IMAGE_HOST_HTML_ERROR_MESSAGE =
+  'XoxoComics reader: image host returned HTML instead of an image for this issue.'
 
 const SECTIONS: XoxoComicsListingConfig[] = [
   {
@@ -106,7 +108,7 @@ export class XoxoComicsClient {
         const allImages = this.parser.parseIssueImages(allResponse.body, allResponse.url)
         if (allImages.length > 0) {
           if (!(await this.firstReaderImageIsAvailable(allImages[0]))) {
-            throw new Error('The image host returned HTML instead of an image for this issue.')
+            throw new Error(IMAGE_HOST_HTML_ERROR_MESSAGE)
           }
 
           pages = allImages
@@ -125,7 +127,7 @@ export class XoxoComicsClient {
     debugLog(`[XoxoComics] Reader images returned: ${pages.length}`)
     if (pages.length === 0) throw new Error('No readable pages were found for this issue.')
     if (!(await this.firstReaderImageIsAvailable(pages[0]))) {
-      throw new Error('The image host returned HTML instead of an image for this issue.')
+      throw new Error(IMAGE_HOST_HTML_ERROR_MESSAGE)
     }
 
     return {
@@ -297,7 +299,7 @@ export class XoxoComicsClient {
         const allImages = this.parser.parseIssueImages(allResponse.body, allResponse.url)
         if (allImages.length > 0) {
           if (!(await this.firstReaderImageIsAvailable(allImages[0]))) {
-            throw new Error('The image host returned HTML instead of an image for this issue.')
+            throw new Error(IMAGE_HOST_HTML_ERROR_MESSAGE)
           }
 
           return allImages
@@ -380,7 +382,7 @@ export class XoxoComicsClient {
   }
 
   private isImageHostHtmlError(error: unknown): boolean {
-    return String(error).includes('XoxoComics reader: image host returned HTML')
+    return String(error).includes(IMAGE_HOST_HTML_ERROR_MESSAGE)
   }
 
   private headerValue(headers: Record<string, string>, name: string): string {
