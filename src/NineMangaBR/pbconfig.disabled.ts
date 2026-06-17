@@ -1,10 +1,13 @@
+// NineManga temporarily disabled because the upstream site is offline.
+// Keep source files in src/NineManga for future reactivation.
+
 import { ContentRating, SourceIntents, type ExtensionInfo } from '@paperback/types'
 
 const sourceInfo = {
   version: '1.0.42',
-  name: 'NineManga Español',
+  name: 'NineManga Português',
   icon: 'icon.png',
-  description: 'Spanish NineManga source with dedicated reader support.',
+  description: 'Brazilian Portuguese NineManga source with localized reader support.',
   contentRating: ContentRating.ADULT,
   developers: [
     {
@@ -12,12 +15,12 @@ const sourceInfo = {
       github: 'DarkDragonkz',
     },
   ],
-  language: 'es',
+  language: 'pt-BR',
   badges: [
     {
-      label: 'Español',
+      label: 'Português',
       textColor: '#ffffff',
-      backgroundColor: '#dc2626',
+      backgroundColor: '#15803d',
     },
     {
       label: 'Manga',

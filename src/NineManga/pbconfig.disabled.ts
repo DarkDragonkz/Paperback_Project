@@ -1,3 +1,6 @@
+// NineManga temporarily disabled because the upstream site is offline.
+// Keep source files in src/NineManga for future reactivation.
+
 import { ContentRating, SourceIntents, type ExtensionInfo } from '@paperback/types'
 
 const sourceInfo = {
