@@ -84,7 +84,7 @@ export class NiaddClient {
 
   async getChapterDetails(chapter: Chapter): Promise<ChapterDetails> {
     const chapterUrl = this.parser.canonicalChapterUrl(chapter.additionalInfo?.url ?? chapter.chapterId)
-    const response = await this.getHtml(chapterUrl, BASE_URL)
+    const response = await this.getHtml(chapterUrl, '')
     const pageUrls = this.parser.parseReaderPageUrls(response.body, response.url).slice(0, MAX_READER_PAGES)
     const pages = [...this.parser.parseChapterImages(response.body, response.url)]
     const loadedUrls = new Set([normalizeUrl(response.url, BASE_URL)])
@@ -95,7 +95,7 @@ export class NiaddClient {
 
       loadedUrls.add(normalizedPageUrl)
       try {
-        const pageResponse = await this.getHtml(normalizedPageUrl, chapterUrl)
+        const pageResponse = await this.getHtml(normalizedPageUrl, '')
         pages.push(...this.parser.parseChapterImages(pageResponse.body, pageResponse.url))
       } catch (error) {
         debugLog(`[Niadd] Reader page failed for ${normalizedPageUrl}: ${String(error)}`)
@@ -133,9 +133,12 @@ export class NiaddClient {
 
     const page = this.readPage(metadata)
     const response = await this.getHtml(this.sectionUrl(config, page))
-    const items = this.parser.parseCatalogItems(response.body)
+    const parsedItems = this.parser.parseCatalogItems(response.body)
+    const items = config.includeChapterUpdates
+      ? parsedItems.filter((item) => Boolean(item.latestChapterId))
+      : parsedItems
 
-    debugLog(`[Niadd] Section ${section.id} page ${page} parsed items: ${items.length}`)
+    debugLog(`[Niadd] Section ${section.id} page ${page} parsed items: ${parsedItems.length}; usable items: ${items.length}`)
     if (items.length === 0) return EndOfPageResults
 
     return {
@@ -245,12 +248,15 @@ export class NiaddClient {
   }
 
   private headers(referer = BASE_URL): HeaderMap {
-    return {
+    const headers: HeaderMap = {
       'user-agent': MOBILE_SAFARI_USER_AGENT,
       accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
       'accept-language': 'en-US,en;q=0.9',
-      referer,
     }
+
+    if (referer) headers.referer = referer
+
+    return headers
   }
 
   private mangaUrl(mangaId: string): string {

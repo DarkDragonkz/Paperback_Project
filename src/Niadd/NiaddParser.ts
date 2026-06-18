@@ -11,7 +11,8 @@ import type { NiaddListingItem, NiaddMangaData } from './NiaddModels'
 
 const MANGA_URL_PATTERN = /^https:\/\/www\.niadd\.com\/(?:manga\/[^/?#]+\.html|original\/\d+\.html)$/i
 const CHAPTER_URL_PATTERN = /^https:\/\/www\.niadd\.com\/chapter\/[^/?#]+\/\d+(?:-\d+)?(?:\.html)?\/?$/i
-const READER_IMAGE_PATTERN = /^https:\/\/img\.niadd\.com\/manga[^?#]*\.(?:jpe?g|png|webp)(?:[?#].*)?$/i
+const READER_IMAGE_PATTERN = /^https:\/\/(?:img\d?\.)?(?:niadd\.com|yx247\.com)\/(?:files\/img\/)?manga[^?#]*\.(?:jpe?g|png|webp)(?:[?#].*)?$/i
+const READER_IMAGE_TEXT_PATTERN = /https?:\\?\/\\?\/(?:img\d?\.)?(?:niadd\.com|yx247\.com)\\?\/(?:files\\?\/img\\?\/)?manga[^'"<>\s\\]+\.(?:jpe?g|png|webp)(?:[?#][^'"<>\s\\]*)?/gi
 const BAD_IMAGE_PATTERN = /(logo|avatar|ads?|advert|banner|tracking|tracker|pixel|blank|spacer|icon|sprite|loader|captcha|analytics|def_logo|noimg)/i
 
 export class NiaddParser {
@@ -108,7 +109,15 @@ export class NiaddParser {
   parseChapterImages(html: string, currentUrl: string): string[] {
     const $ = cheerio.load(html)
     const images: string[] = []
-    const candidates = $('section.mangaread-img img.manga_pic, img.manga_pic, section.mangaread-img a[href*="img.niadd.com"]')
+    const candidates = $(
+      [
+        'section.mangaread-img img',
+        'section.mangaread-img a[href*="/manga"]',
+        'section.mangaread-img a[href*="img.niadd.com"]',
+        'section.mangaread-img a[href*="yx247.com"]',
+        'img.manga_pic',
+      ].join(', ')
+    )
 
     candidates.each((_, element) => {
       const node = $(element)
@@ -119,16 +128,18 @@ export class NiaddParser {
       }
     })
 
+    images.push(...this.parseReaderImagesFromText(html, currentUrl))
+
     return uniqueStrings(images)
   }
 
   canonicalMangaUrl(rawUrl: string): string {
-    const normalized = normalizeUrl(rawUrl, this.baseUrl).replace(/[?#].*$/, '')
+    const normalized = this.canonicalizeNiaddHost(normalizeUrl(rawUrl, this.baseUrl)).replace(/[?#].*$/, '')
     return MANGA_URL_PATTERN.test(normalized) ? normalized : ''
   }
 
   canonicalChapterUrl(rawUrl: string): string {
-    const normalized = normalizeUrl(rawUrl, this.baseUrl).replace(/[?#].*$/, '')
+    const normalized = this.canonicalizeNiaddHost(normalizeUrl(rawUrl, this.baseUrl)).replace(/[?#].*$/, '')
     return CHAPTER_URL_PATTERN.test(normalized) ? normalized : ''
   }
 
@@ -308,18 +319,33 @@ export class NiaddParser {
   }
 
   private canonicalReaderPageUrl(rawUrl: string): string {
-    const normalized = normalizeUrl(rawUrl, this.baseUrl).replace(/[?#].*$/, '')
+    const normalized = this.canonicalizeNiaddHost(normalizeUrl(rawUrl, this.baseUrl)).replace(/[?#].*$/, '')
     return CHAPTER_URL_PATTERN.test(normalized) ? normalized : ''
   }
 
+  private parseReaderImagesFromText(html: string, currentUrl: string): string[] {
+    const images: string[] = []
+
+    for (const match of html.matchAll(READER_IMAGE_TEXT_PATTERN)) {
+      const rawUrl = match[0]?.replace(/\\\//g, '/')
+      const imageUrl = normalizeUrl(rawUrl, currentUrl || this.baseUrl)
+      if (imageUrl && this.isReaderImageUrl(imageUrl)) images.push(imageUrl)
+    }
+
+    return images
+  }
+
   private isReaderImage(url: string, node: Cheerio<AnyNode>): boolean {
-    if (!url || BAD_IMAGE_PATTERN.test(url)) return false
-    if (!READER_IMAGE_PATTERN.test(url)) return false
+    if (!this.isReaderImageUrl(url)) return false
 
     const className = cleanText(node.attr('class'))
     const id = cleanText(node.attr('id'))
     const alt = cleanText(node.attr('alt'))
     return !BAD_IMAGE_PATTERN.test(`${className} ${id} ${alt}`)
+  }
+
+  private isReaderImageUrl(url: string): boolean {
+    return Boolean(url) && !BAD_IMAGE_PATTERN.test(url) && READER_IMAGE_PATTERN.test(url)
   }
 
   private isHiddenImage(node: Cheerio<AnyNode>): boolean {
@@ -404,5 +430,9 @@ export class NiaddParser {
       .replace(/&quot;/g, '"')
       .replace(/&#039;/g, "'")
       .replace(/&apos;/g, "'")
+  }
+
+  private canonicalizeNiaddHost(url: string): string {
+    return url.replace(/^https:\/\/www\.ninemanga\.com\//i, 'https://www.niadd.com/')
   }
 }
