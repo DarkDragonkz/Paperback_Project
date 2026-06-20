@@ -1,5 +1,5 @@
 {
-  "buildTime": "2026-06-20T21:43:20.606Z",
+  "buildTime": "2026-06-20T22:00:39.473Z",
   "builtWith": {
     "toolchain": "1.0.0-alpha.86",
     "types": "1.0.0-alpha.86"
@@ -362,7 +362,7 @@
       "id": "TuttoAnimeManga"
     },
     {
-      "version": "1.0.2",
+      "version": "1.0.3",
       "name": "WeebCentral",
       "icon": "icon.png",
       "description": "English manga source with discover, search and reader support.",
