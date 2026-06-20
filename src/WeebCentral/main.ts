@@ -19,7 +19,7 @@ import type {
 import { WeebCentralClient } from './WeebCentralClient'
 import { WeebCentralInterceptor } from './WeebCentralInterceptor'
 
-const SOURCE_VERSION = '1.0.2'
+const SOURCE_VERSION = '1.0.3'
 
 class WeebCentralExtension
   implements Extension, ChapterProviding, SearchResultsProviding, DiscoverSectionProviding

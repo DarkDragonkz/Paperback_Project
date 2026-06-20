@@ -1,7 +1,7 @@
 import { ContentRating, SourceIntents, type ExtensionInfo } from '@paperback/types'
 
 const sourceInfo = {
-  version: '1.0.2',
+  version: '1.0.3',
   name: 'WeebCentral',
   icon: 'icon.png',
   description: 'English manga source with discover, search and reader support.',
