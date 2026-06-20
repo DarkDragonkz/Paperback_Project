@@ -4,7 +4,7 @@ import { IMAGE_ACCEPT_HEADER, MOBILE_SAFARI_USER_AGENT } from '../common/http/he
 
 const BASE_URL = 'https://weebcentral.com/'
 const WEEBCENTRAL_PATTERN = /^https?:\/\/weebcentral\.com\//i
-const IMAGE_HOST_PATTERN = /^https?:\/\/(?:(?:[^/?#]+\.)?planeptune\.us|temp\.compsci88\.com)\//i
+const IMAGE_HOST_PATTERN = /^https?:\/\/(?:(?:[^/?#]+\.)?(?:lowee|planeptune)\.us|temp\.compsci88\.com)\//i
 
 export class WeebCentralInterceptor extends PaperbackInterceptor {
   async interceptRequest(request: Request): Promise<Request> {

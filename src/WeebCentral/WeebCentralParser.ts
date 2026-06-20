@@ -10,7 +10,7 @@ import type { WeebCentralListingItem, WeebCentralMangaData } from './WeebCentral
 
 const SERIES_URL_PATTERN = /^https:\/\/weebcentral\.com\/series\/[A-Z0-9]+\/[^/?#]+\/?$/i
 const CHAPTER_URL_PATTERN = /^https:\/\/weebcentral\.com\/chapters\/[A-Z0-9]+\/?$/i
-const READER_IMAGE_PATTERN = /^https:\/\/(?:(?:[^/?#]+\.)?planeptune\.us|temp\.compsci88\.com)\//i
+const READER_IMAGE_PATTERN = /^https:\/\/(?:(?:[^/?#]+\.)?(?:lowee|planeptune)\.us|temp\.compsci88\.com)\//i
 const BAD_IMAGE_PATTERN = /(brand|logo|favicon|apple-touch-icon|broken_image|cover\/)/i
 
 export class WeebCentralParser {
