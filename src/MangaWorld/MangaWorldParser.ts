@@ -17,6 +17,8 @@ import type { MangaWorldListingItem, MangaWorldMangaData } from './MangaWorldMod
 
 const MANGA_HOST_PATTERN = /^https:\/\/(?:www\.)?mangaworld\.mx\//i
 const CDN_HOST = 'cdn.mangaworld.mx'
+const IMAGE_PROXY_BASE_URL = 'https://images.weserv.nl/'
+const IMAGE_PROXY_OPTIONS = 'output=webp&q=80'
 const IGNORED_URL_PATTERN =
   /(platform\.pubadx\.one|googletagmanager|google-analytics|googlesyndication|doubleclick|pubadx|weforads|dtscout|amung\.us|hotjar|clarity\.ms|facebook\.net|adservice\.google|googleadservices|adnxs|criteo|taboola|outbrain|popads|popcash|propellerads|onclickads|exoclick|juicyads|trafficjunky|mgid|revcontent|logo|placeholder|icon|sprite|tracker|pixel)/i
 
@@ -114,7 +116,7 @@ export class MangaWorldParser {
 
       $(selector).each((_, element) => {
         const imageUrl = normalizeUrl(this.getImageUrl($(element), currentUrl), currentUrl)
-        if (this.isValidReaderImage(imageUrl)) pages.push(imageUrl)
+        if (this.isValidReaderImage(imageUrl)) pages.push(this.readerImageUrl(imageUrl))
       })
 
       const uniquePages = uniqueStrings(pages)
@@ -373,6 +375,10 @@ export class MangaWorldParser {
     const path = this.pathFromUrl(url)
 
     return host === CDN_HOST && path.includes('/chapters/') && /\.(?:jpe?g|png|webp)$/i.test(path)
+  }
+
+  private readerImageUrl(url: string): string {
+    return `${IMAGE_PROXY_BASE_URL}?url=${encodeURIComponent(url)}&${IMAGE_PROXY_OPTIONS}`
   }
 
   private parseChapterNumber(value: string): number {
