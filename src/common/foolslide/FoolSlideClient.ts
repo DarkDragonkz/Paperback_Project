@@ -15,6 +15,7 @@ import {
 
 import { defaultBrowserHeaders, mergeHeaders, type HeaderMap } from '../http/headers'
 import { getText, postText, type TextResponse } from '../http/request'
+import { proxiedReaderImageUrls } from '../utils/images'
 import { normalizeUrl, pathIdFromUrl } from '../utils/url'
 import type { FoolSlideConfig, FoolSlideListingItem, FoolSlideMangaData } from './FoolSlideModels'
 import { FoolSlideParser } from './FoolSlideParser'
@@ -66,7 +67,7 @@ export class FoolSlideClient {
     return {
       id: chapter.chapterId,
       mangaId: chapter.sourceManga.mangaId,
-      pages,
+      pages: proxiedReaderImageUrls(pages),
     }
   }
 

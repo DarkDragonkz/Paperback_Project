@@ -17,6 +17,7 @@ import { MOBILE_SAFARI_USER_AGENT, type HeaderMap } from '../common/http/headers
 import type { PageMetadata } from '../common/models/Pagination'
 import { uniqueBy } from '../common/utils/array'
 import { orderChaptersForReading } from '../common/utils/chapters'
+import { proxiedReaderImageUrls } from '../common/utils/images'
 import { normalizeUrl, pathIdFromUrl } from '../common/utils/url'
 import { getText, head, type TextResponse } from './XoxoComicsHttp'
 import type {
@@ -134,7 +135,7 @@ export class XoxoComicsClient {
     return {
       id: chapter.chapterId,
       mangaId: chapter.sourceManga.mangaId,
-      pages,
+      pages: proxiedReaderImageUrls(pages),
     }
   }
 

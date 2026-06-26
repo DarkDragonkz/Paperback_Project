@@ -14,6 +14,7 @@ import {
 } from '@paperback/types'
 
 import { MOBILE_SAFARI_USER_AGENT, type HeaderMap } from '../common/http/headers'
+import { proxiedReaderImageUrls } from '../common/utils/images'
 import { normalizeUrl, pathIdFromUrl, withQueryParam } from '../common/utils/url'
 import { getText, type TextResponse } from './MangaWorldHttp'
 import type {
@@ -116,7 +117,7 @@ export class MangaWorldClient {
     return {
       id: chapter.chapterId,
       mangaId: chapter.sourceManga.mangaId,
-      pages,
+      pages: proxiedReaderImageUrls(pages),
     }
   }
 

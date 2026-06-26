@@ -15,6 +15,7 @@ import {
 
 import { defaultBrowserHeaders, mergeHeaders, type HeaderMap } from '../common/http/headers'
 import { getText, type TextResponse } from '../common/http/request'
+import { proxiedReaderImageUrls } from '../common/utils/images'
 import { normalizeUrl, pathIdFromUrl } from '../common/utils/url'
 import type {
   ZeurelScanListingConfig,
@@ -85,7 +86,7 @@ export class ZeurelScanClient {
     return {
       id: chapter.chapterId,
       mangaId: chapter.sourceManga.mangaId,
-      pages,
+      pages: proxiedReaderImageUrls(pages),
     }
   }
 

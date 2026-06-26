@@ -14,6 +14,7 @@ import {
 
 import { defaultBrowserHeaders, mergeHeaders, type HeaderMap } from '../http/headers'
 import { getJson } from '../http/request'
+import { proxiedReaderImageUrls } from '../utils/images'
 import type {
   PizzaReaderChapter,
   PizzaReaderChapterResponse,
@@ -97,7 +98,7 @@ export class PizzaReaderClient {
     return {
       id: chapter.chapterId,
       mangaId: chapter.sourceManga.mangaId,
-      pages,
+      pages: proxiedReaderImageUrls(pages),
     }
   }
 

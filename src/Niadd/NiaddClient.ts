@@ -17,6 +17,7 @@ import { getText, type TextResponse } from '../common/http/request'
 import { MOBILE_SAFARI_USER_AGENT, type HeaderMap } from '../common/http/headers'
 import type { PageMetadata } from '../common/models/Pagination'
 import { uniqueBy } from '../common/utils/array'
+import { proxiedReaderImageUrls } from '../common/utils/images'
 import { normalizeUrl, pathIdFromUrl } from '../common/utils/url'
 import type { NiaddListingConfig, NiaddListingItem, NiaddMangaData } from './NiaddModels'
 import { NiaddParser } from './NiaddParser'
@@ -111,7 +112,7 @@ export class NiaddClient {
     return {
       id: chapter.chapterId,
       mangaId: chapter.sourceManga.mangaId,
-      pages: uniquePages,
+      pages: proxiedReaderImageUrls(uniquePages),
     }
   }
 

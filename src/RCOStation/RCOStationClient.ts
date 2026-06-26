@@ -14,6 +14,7 @@ import {
 } from '@paperback/types'
 
 import { IMAGE_ACCEPT_HEADER, MOBILE_SAFARI_USER_AGENT, type HeaderMap } from '../common/http/headers'
+import { proxiedReaderImageUrls } from '../common/utils/images'
 import { normalizeUrl, pathIdFromUrl } from '../common/utils/url'
 import { getText, postForm, type TextResponse } from './RCOStationHttp'
 import type {
@@ -96,7 +97,7 @@ export class RCOStationClient {
     return {
       id: chapter.chapterId,
       mangaId: chapter.sourceManga.mangaId,
-      pages,
+      pages: proxiedReaderImageUrls(pages),
     }
   }
 

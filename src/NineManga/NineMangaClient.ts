@@ -19,6 +19,7 @@ import { defaultBrowserHeaders, mergeHeaders, type HeaderMap } from '../common/h
 import { CloudflareBypassInProgressError, getJson, getText, type TextResponse } from '../common/http/request'
 import type { PageMetadata } from '../common/models/Pagination'
 import { uniqueStrings } from '../common/utils/array'
+import { proxiedReaderImageUrls } from '../common/utils/images'
 import { normalizeUrl, pathIdFromUrl, withQueryParam } from '../common/utils/url'
 import type {
   NineMangaListingConfig,
@@ -225,7 +226,7 @@ private chapterProgressionNumber(chapter: Chapter): number {
     return {
       id: preparedChapter.chapterId,
       mangaId: preparedChapter.sourceManga.mangaId,
-      pages: uniquePages,
+      pages: proxiedReaderImageUrls(uniquePages),
     }
   }
 

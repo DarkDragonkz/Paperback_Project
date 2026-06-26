@@ -15,6 +15,7 @@ import {
 
 import { MOBILE_SAFARI_USER_AGENT, type HeaderMap } from '../common/http/headers'
 import type { PageMetadata } from '../common/models/Pagination'
+import { proxiedReaderImageUrls } from '../common/utils/images'
 import { normalizeUrl, pathIdFromUrl } from '../common/utils/url'
 import { getText, postForm, type TextResponse } from './ReadAllComicsHttp'
 import type {
@@ -78,7 +79,7 @@ export class ReadAllComicsClient {
     return {
       id: chapter.chapterId,
       mangaId: chapter.sourceManga.mangaId,
-      pages,
+      pages: proxiedReaderImageUrls(pages),
     }
   }
 
