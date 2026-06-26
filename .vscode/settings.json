@@ -1,0 +1,7 @@
+{
+    "github-actions.remote-name": "VStudio",
+    "github-actions.workflows.pinned.refresh.enabled": true,
+    "github-actions.workflows.pinned.workflows": [
+        
+    ]
+}
