@@ -39,17 +39,17 @@ interface CacheEntry<T> {
 const SECTIONS: PizzaReaderListingConfig[] = [
   {
     id: 'featured',
-    title: '⭐ In evidenza',
+    title: 'In evidenza',
     includeChapterUpdates: false,
   },
   {
     id: 'latest',
-    title: '📚 Ultimi aggiornamenti',
+    title: 'Nuovi capitoli',
     includeChapterUpdates: true,
   },
   {
     id: 'popular',
-    title: '📖 Archivio',
+    title: 'Catalogo',
     includeChapterUpdates: false,
   },
 ]
@@ -146,14 +146,12 @@ export class PizzaReaderClient {
       })),
     ]
 
-    if (await this.hasGenres()) {
-        sections.push({
-          id: 'genres',
-          title: '🏷️ Generi',
-          subtitle: 'Esplora per genere',
-        type: DiscoverSectionType.genres,
-      })
-    }
+    sections.push({
+      id: 'genres',
+      title: 'Generi',
+      subtitle: 'Sfoglia il catalogo per tema',
+      type: DiscoverSectionType.genres,
+    })
 
     return sections
   }
@@ -329,14 +327,6 @@ export class PizzaReaderClient {
           },
         },
       }))
-  }
-
-  private async hasGenres(): Promise<boolean> {
-    try {
-      return this.genreItems(await this.getComics()).length > 0
-    } catch {
-      return false
-    }
   }
 
   private searchGenre(metadata: Metadata | undefined): string {

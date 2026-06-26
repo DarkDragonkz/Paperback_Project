@@ -55,31 +55,31 @@ interface CacheEntry<T> {
 const SECTIONS: MangaWorldListingConfig[] = [
   {
     id: 'featured',
-    title: '⭐ In evidenza',
+    title: 'Scelti su MangaWorld',
     path: '/',
     includeChapterUpdates: false,
   },
   {
     id: 'latest',
-    title: '📚 Ultimi aggiornamenti',
+    title: 'Capitoli appena usciti',
     path: '/',
     includeChapterUpdates: true,
   },
   {
     id: 'popular',
-    title: '🔥 Più letti',
+    title: 'I più letti',
     path: '/archive?sort=most_read',
     includeChapterUpdates: false,
   },
   {
     id: 'new',
-    title: '🆕 Nuove serie',
+    title: 'Nuove serie',
     path: '/archive?sort=newest',
     includeChapterUpdates: false,
   },
   {
     id: 'completed',
-    title: '✅ Completati',
+    title: 'Serie completate',
     path: '/archive?status=completed',
     includeChapterUpdates: false,
   },
@@ -131,8 +131,8 @@ export class MangaWorldClient {
       })),
       {
         id: 'genres',
-        title: '🏷️ Generi',
-        subtitle: 'Esplora MangaWorld per genere',
+        title: 'Generi',
+        subtitle: 'Trova nuove serie per tema',
         type: DiscoverSectionType.genres,
       },
     ]
@@ -262,15 +262,15 @@ export class MangaWorldClient {
   private sectionSubtitle(sectionId: string): string {
     switch (sectionId) {
       case 'featured':
-        return 'Scelte dalla homepage'
+        return 'Titoli in primo piano dalla homepage'
       case 'latest':
-        return 'Capitoli appena pubblicati'
+        return 'Aggiornamenti recenti pronti da leggere'
       case 'popular':
-        return 'Serie più lette sul sito'
+        return 'Le serie più seguite sul sito'
       case 'new':
-        return 'Serie aggiunte di recente'
+        return 'Aggiunte recenti al catalogo'
       case 'completed':
-        return 'Serie concluse'
+        return 'Storie complete da recuperare'
       default:
         return ''
     }

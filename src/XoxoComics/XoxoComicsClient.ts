@@ -42,7 +42,7 @@ const IMAGE_HOST_HTML_ERROR_MESSAGE =
 const SECTIONS: XoxoComicsListingConfig[] = [
   {
     id: 'trending',
-    title: '🔥 Trending Comics',
+    title: 'Trending Comics',
     url: BASE_URL,
     itemSelector: '.items-slide .item',
     includeChapterUpdates: false,
@@ -50,7 +50,7 @@ const SECTIONS: XoxoComicsListingConfig[] = [
   },
   {
     id: 'latest',
-    title: '📚 Latest Updates',
+    title: 'Latest Issues',
     url: BASE_URL,
     itemSelector: '.items .row > .item',
     includeChapterUpdates: true,
@@ -58,7 +58,7 @@ const SECTIONS: XoxoComicsListingConfig[] = [
   },
   {
     id: 'new',
-    title: '🆕 New Comics',
+    title: 'New Comics',
     url: '/new-comic',
     itemSelector: '.items .row > .item',
     includeChapterUpdates: true,
@@ -66,7 +66,7 @@ const SECTIONS: XoxoComicsListingConfig[] = [
   },
   {
     id: 'popular',
-    title: '⭐ Popular Comics',
+    title: 'Popular Comics',
     url: '/popular-comic',
     itemSelector: '.items .row > .item',
     includeChapterUpdates: false,
@@ -420,11 +420,11 @@ export class XoxoComicsClient {
   private sectionSubtitle(sectionId: string): string {
     switch (sectionId) {
       case 'trending':
-        return 'Homepage comics in focus'
+        return 'Highlighted picks from the homepage'
       case 'latest':
         return 'Newest issue releases'
       case 'new':
-        return 'Newly added comic series'
+        return 'Recently added comic series'
       case 'popular':
         return 'Popular comic series'
       default:

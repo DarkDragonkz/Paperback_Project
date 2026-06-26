@@ -43,25 +43,25 @@ interface CacheEntry<T> {
 const SECTIONS: RCOStationListingConfig[] = [
   {
     id: 'featured',
-    title: '⭐ Featured Comics',
+    title: 'Featured Comics',
     heading: 'New comic',
     includeChapterUpdates: false,
   },
   {
     id: 'latest',
-    title: '📚 Latest Updates',
+    title: 'Latest Issues',
     heading: 'Latest update',
     includeChapterUpdates: true,
   },
   {
     id: 'new',
-    title: '🆕 New Comics',
+    title: 'New Comics',
     heading: 'New comic',
     includeChapterUpdates: false,
   },
   {
     id: 'popular',
-    title: '🔥 Popular Comics',
+    title: 'Popular Comics',
     heading: 'Most popular',
     includeChapterUpdates: false,
   },
@@ -386,11 +386,11 @@ export class RCOStationClient {
   private sectionSubtitle(sectionId: string): string {
     switch (sectionId) {
       case 'featured':
-        return 'Homepage picks with cover art'
+        return 'Fresh homepage picks with cover art'
       case 'latest':
         return 'Fresh issue releases'
       case 'new':
-        return 'Newly added series'
+        return 'Newly added comic series'
       case 'popular':
         return 'Most-read comics'
       default:

@@ -75,7 +75,7 @@ export class FoolSlideClient {
     const sections: DiscoverSection[] = [
         {
           id: 'featured',
-          title: '⭐ In evidenza',
+          title: 'In evidenza',
           subtitle: this.supportsLatest() ? 'Serie aggiornate di recente' : 'Serie dal catalogo',
         type: DiscoverSectionType.featured,
       },
@@ -84,7 +84,7 @@ export class FoolSlideClient {
     if (this.supportsLatest()) {
       sections.push({
           id: 'latest',
-          title: '📚 Ultimi aggiornamenti',
+          title: 'Nuovi capitoli',
           subtitle: 'Aggiornamenti recenti',
         type: DiscoverSectionType.chapterUpdates,
       })
@@ -93,7 +93,7 @@ export class FoolSlideClient {
     sections.push(
         {
           id: 'catalog',
-          title: '📖 Archivio',
+          title: 'Catalogo',
           subtitle: 'Tutte le serie disponibili',
         type: DiscoverSectionType.prominentCarousel,
       },

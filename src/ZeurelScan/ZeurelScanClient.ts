@@ -37,19 +37,19 @@ interface CacheEntry<T> {
 const SECTIONS: ZeurelScanListingConfig[] = [
   {
     id: 'featured',
-    title: '⭐ In evidenza',
+    title: 'In evidenza',
     path: '/ultimi',
     includeChapterUpdates: false,
   },
   {
     id: 'latest',
-    title: '📚 Ultimi aggiornamenti',
+    title: 'Nuovi capitoli',
     path: '/ultimi',
     includeChapterUpdates: true,
   },
   {
     id: 'series',
-    title: '📖 Archivio',
+    title: 'Catalogo',
     path: '/series',
     includeChapterUpdates: false,
   },

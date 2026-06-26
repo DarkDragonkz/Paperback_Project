@@ -31,28 +31,28 @@ const MAX_READER_PAGES = 80
 const SECTIONS: NiaddListingConfig[] = [
   {
     id: 'latest',
-    title: '📚 Latest Updates',
+    title: 'Latest Chapters',
     url: '/list/New-Update/',
     includeChapterUpdates: true,
     featured: false,
   },
   {
     id: 'popular',
-    title: '🔥 Popular Manga',
+    title: 'Popular Manga',
     url: '/list/Hot-Manga/',
     includeChapterUpdates: false,
     featured: true,
   },
   {
     id: 'original',
-    title: '🆕 Original Manga',
+    title: 'Original Series',
     url: '/category/original/',
     includeChapterUpdates: false,
     featured: false,
   },
   {
     id: 'today',
-    title: '📖 Today Updated',
+    title: "Today's Updates",
     url: '/update/',
     includeChapterUpdates: true,
     featured: false,
@@ -285,9 +285,9 @@ export class NiaddClient {
   private sectionSubtitle(sectionId: string): string {
     switch (sectionId) {
       case 'latest':
-        return 'Newest manga updates on Niadd'
+        return 'Fresh chapter releases from Niadd'
       case 'popular':
-        return 'Popular manga from the directory'
+        return 'Most watched titles in the directory'
       case 'original':
         return 'Original titles published on Niadd'
       case 'today':

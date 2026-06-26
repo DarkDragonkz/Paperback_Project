@@ -33,13 +33,13 @@ const MAX_CACHE_ENTRIES = 30
 const SECTIONS: WeebCentralListingConfig[] = [
   {
     id: 'hot',
-    title: '🔥 Popular Series',
+    title: 'Popular Series',
     url: '/hot-series?sort=monthly_views',
     paged: false,
   },
   {
     id: 'recent',
-    title: '🆕 Recently Added',
+    title: 'Recently Added',
     url: '/recently-added',
     paged: true,
   },

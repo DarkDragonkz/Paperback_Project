@@ -34,12 +34,12 @@ const MAX_CACHE_ENTRIES = 30
 const SECTIONS: ReadAllComicsListingConfig[] = [
   {
     id: 'featured',
-    title: '⭐ Featured Series',
+    title: 'Featured Series',
     includeChapterUpdates: false,
   },
   {
     id: 'latest',
-    title: '📚 Latest Updates',
+    title: 'Latest Issues',
     includeChapterUpdates: true,
   },
 ]
